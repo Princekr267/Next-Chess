@@ -1,0 +1,44 @@
+.board {
+    --light-tile: #ffffff;
+    --dark-tile: #000000;
+    display: grid;
+    grid-template-columns: 1.5rem minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr) 1.5rem;
+    width: min(92vw, 32rem);
+    aspect-ratio: 9 / 9.35;
+}
+
+.rank {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: space-around;
+}
+
+.grid {
+    display: grid;
+    grid-template-columns: repeat(8, minmax(0, 1fr));
+    grid-template-rows: repeat(8, minmax(0, 1fr));
+    aspect-ratio: 1;
+}
+
+.tile {
+    display: grid;
+    place-items: center;
+    font-size: clamp(0.5rem, 1.8vw, 0.75rem);
+}
+
+.tile-light {
+    background-color: var(--light-tile);
+}
+
+.tile-dark {
+    background-color: var(--dark-tile);
+}
+
+.board > :last-child {
+    grid-column: 2;
+    display: flex;
+    align-items: center;
+    justify-content: space-around;
+}
