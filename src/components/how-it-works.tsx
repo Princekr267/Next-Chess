@@ -1,6 +1,10 @@
 "use client";
 
 import { motion } from "framer-motion";
+import { Button } from "./ui/button";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { authClient } from "@/lib/auth-client";
 
 const steps = [
   {
@@ -21,8 +25,17 @@ const steps = [
 ];
 
 export function HowItWorks() {
+  const router = useRouter();
+  const { data: session, isPending } = authClient.useSession();
+
+  const handlePlayClick = () => {
+    router.push("/modes");
+  };
+
+  const buttonLabel = isPending ? "Loading..." : session ? "Play Chess" : "Play as a Guest";
+
   return (
-    <section className="py-24 px-4 bg-muted/30">
+    <section className="py-24 px-4">
       <div className="mx-auto max-w-4xl">
         <motion.h2
           initial={{ opacity: 0, y: 20 }}
@@ -55,6 +68,17 @@ export function HowItWorks() {
           ))}
         </div>
       </div>
+
+      {/* CTA button */}
+      <motion.div className="text-center mt-8">
+        <Button
+          className="border-2 rounded-xl bg-sky-300 p-2 text-lg hover:bg-sky-200 cursor-pointer px-6 py-3"
+          onClick={handlePlayClick}
+          disabled={isPending}
+        >
+          {buttonLabel}
+        </Button>
+      </motion.div>
     </section>
   );
 }
