@@ -51,8 +51,10 @@ export function CustomChessGame() {
     pointerEvents: "none" as const,
   };
 
+  // Wrapper handles ambient contact shadow grounding the glossy pieces on the wood
   const makePiece = (src: string, alt: string, size = "100%") => () => (
     <div
+      className="camp-piece-wrapper"
       style={{
         width: "100%",
         height: "100%",
@@ -61,6 +63,7 @@ export function CustomChessGame() {
         justifyContent: "center",
         padding: "2px",
         boxSizing: "border-box",
+        filter: "drop-shadow(0 4px 3px rgba(14, 9, 6, 0.52))",
       }}
     >
       <img
@@ -89,27 +92,15 @@ export function CustomChessGame() {
     bB: makePiece("/bb_no_bg.png", "Black Bishop", "100%"),
     bR: makePiece("/br_no_bg.png", "Black Rook", "100%"),
     bQ: makePiece("/bq_no_bg.png", "Black queen", "100%"),
-    
-    // wP: () => <img src="/wp_no_bg.png" alt="White pawn" style={pieceStyle} draggable={false} />,
-    // wN: () => <img src="/wh_no_bg.png" alt="White knight" style={pieceStyle} draggable={false} />,
-    // wB: () => <img src="/wb_no_bg.png" alt="White bishop" style={pieceStyle} draggable={false} />,
-    // wR: () => <img src="/wr_no_bg.png" alt="White rook" style={pieceStyle} draggable={false} />,
-    // wQ: () => <img src="/wq_no_bg.png" alt="White queen" style={pieceStyle} draggable={false} />,
-    // wK: () => <img src="/wk_no_bg.png" alt="White king" style={pieceStyle} draggable={false} />,
-    // bP: () => <img src="/bp_no_bg.png" alt="Black pawn" style={pieceStyle} draggable={false} />,
-    // bN: () => <img src="/bh_no_bg.png" alt="Black knight" style={pieceStyle} draggable={false} />,
-    // bB: () => <img src="/bb_no_bg.png" alt="Black bishop" style={pieceStyle} draggable={false} />,
-    // bR: () => <img src="/br_no_bg.png" alt="Black rook" style={pieceStyle} draggable={false} />,
-    // bQ: () => <img src="/bq_no_bg.png" alt="Black queen" style={pieceStyle} draggable={false} />,
-    // bK: () => <img src="/bk_no_bg.png" alt="Black king" style={pieceStyle} draggable={false} />,
   };
 
   return (
     <div
       ref={containerRef}
+      className="camp-board-tray"
       style={{
         width: "100%",
-        maxWidth: 500,
+        maxWidth: 520,
         aspectRatio: "1 / 1",
         margin: "0 auto",
       }}
@@ -121,11 +112,41 @@ export function CustomChessGame() {
           onPieceDrop,
           pieces,
           boardStyle: {
-            borderRadius: "12px",
-            boxShadow: "0 8px 30px rgba(0,0,0,0.4)",
+            borderRadius: "6px",
+            boxShadow: "inset 0 0 6px rgba(0,0,0,0.5), 0 2px 6px rgba(0,0,0,0.3)",
+            overflow: "hidden",
           },
-          darkSquareStyle: { backgroundColor: "#3a3a52" },
-          lightSquareStyle: { backgroundColor: "#e8e4d8" },
+          darkSquareStyle: {
+            backgroundColor: "#3a2b22",
+            backgroundImage:
+              "linear-gradient(135deg, rgba(78, 56, 45, 0.28) 0%, rgba(45, 31, 24, 0.4) 60%, rgba(26, 17, 12, 0.55) 100%)",
+            boxShadow: "inset 0 0 0 1px rgba(0, 0, 0, 0.25)",
+          },
+          lightSquareStyle: {
+            backgroundColor: "#dfd2bc",
+            backgroundImage:
+              "linear-gradient(135deg, rgba(255, 255, 255, 0.22) 0%, rgba(210, 194, 168, 0.25) 50%, rgba(184, 166, 138, 0.35) 100%)",
+            boxShadow: "inset 0 0 0 1px rgba(180, 158, 128, 0.3)",
+          },
+          dropSquareStyle: {
+            boxShadow: "inset 0 0 0 3px #d97724, inset 0 0 10px rgba(217, 119, 36, 0.4)",
+          },
+          darkSquareNotationStyle: {
+            color: "rgba(223, 210, 188, 0.65)",
+            fontWeight: 700,
+            fontSize: "11px",
+            fontFamily: "inherit",
+            padding: "2px 4px",
+            userSelect: "none",
+          },
+          lightSquareNotationStyle: {
+            color: "rgba(58, 43, 34, 0.75)",
+            fontWeight: 700,
+            fontSize: "11px",
+            fontFamily: "inherit",
+            padding: "2px 4px",
+            userSelect: "none",
+          },
           animationDurationInMs: 200,
           showNotation: true,
         }}
