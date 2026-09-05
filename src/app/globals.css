@@ -1,134 +1,243 @@
 @import "tailwindcss";
 @import "tw-animate-css";
-@import "shadcn/tailwind.css";
 
-@custom-variant dark (&:is(.dark *));
-
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-sans);
-  --font-mono: var(--font-geist-mono);
-  --font-heading: var(--font-sans);
-  --color-sidebar-ring: var(--sidebar-ring);
-  --color-sidebar-border: var(--sidebar-border);
-  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
-  --color-sidebar-accent: var(--sidebar-accent);
-  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
-  --color-sidebar-primary: var(--sidebar-primary);
-  --color-sidebar-foreground: var(--sidebar-foreground);
-  --color-sidebar: var(--sidebar);
-  --color-chart-5: var(--chart-5);
-  --color-chart-4: var(--chart-4);
-  --color-chart-3: var(--chart-3);
-  --color-chart-2: var(--chart-2);
-  --color-chart-1: var(--chart-1);
-  --color-ring: var(--ring);
-  --color-input: var(--input);
-  --color-border: var(--border);
-  --color-destructive: var(--destructive);
-  --color-accent-foreground: var(--accent-foreground);
-  --color-accent: var(--accent);
-  --color-muted-foreground: var(--muted-foreground);
-  --color-muted: var(--muted);
-  --color-secondary-foreground: var(--secondary-foreground);
-  --color-secondary: var(--secondary);
-  --color-primary-foreground: var(--primary-foreground);
-  --color-primary: var(--primary);
-  --color-popover-foreground: var(--popover-foreground);
-  --color-popover: var(--popover);
-  --color-card-foreground: var(--card-foreground);
-  --color-card: var(--card);
-  --radius-sm: calc(var(--radius) * 0.6);
-  --radius-md: calc(var(--radius) * 0.8);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) * 1.4);
-  --radius-2xl: calc(var(--radius) * 1.8);
-  --radius-3xl: calc(var(--radius) * 2.2);
-  --radius-4xl: calc(var(--radius) * 2.6);
-}
+/* ==========================================================================
+   CHESS BASE: PLAYFUL CARTOON MOUNTAIN BASECAMP DESIGN SYSTEM
+   Vibrant, punchy cartoon game aesthetic with chunky solid shadows,
+   bold borders, tactile press states, and cozy alpine basecamp vibes.
+   ========================================================================== */
 
 :root {
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --radius: 0.625rem;
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
-}
+  /* --- 1. Vibrant Playful Cartoon Palette --- */
+  --base-yellow: #fbbf24;
+  --base-orange: #f97316;
+  --base-teal: #10b981;
+  --base-mint: #2dd4bf;
+  --base-violet: #8b5cf6;
+  --base-sky: #38bdf8;
+  --base-pink: #ec4899;
+  --base-cream: #fffdfa;
+  --base-card: #fefce8;
 
-.dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+  /* --- 2. Alpine Dusk & Deep Bedrock --- */
+  --base-dark-bg: #0f172a;
+  --base-dark-surface: #1e293b;
+  --base-dark-border: #334155;
+  --base-text-light: #f8fafc;
+  --base-text-muted: #94a3b8;
+
+  /* --- 3. Carved Wood Chess Board --- */
+  --board-tray-bg: #2a1b12;
+  --board-tray-border: #150d09;
+  --board-sq-light: #dfd2bc;
+  --board-sq-dark: #3a2b22;
+
+  /* --- 4. Chunky Solid Shadows & Borders --- */
+  --shadow-chunky-sm: 2px 2px 0px #000000;
+  --shadow-chunky: 4px 4px 0px #000000;
+  --shadow-chunky-lg: 6px 6px 0px #000000;
+  --border-chunky: 2.5px solid #000000;
+
+  /* Semantic mappings */
+  --background: var(--base-dark-bg);
+  --foreground: var(--base-text-light);
+  --radius: 12px;
 }
 
 @layer base {
-  * {
-    @apply border-border outline-ring/50;
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
   }
-  body {
-    @apply bg-background text-foreground;
-  }
+
   html {
-    @apply font-sans;
-    /* Tailwind v4 preflight sets html to height:100% which traps scroll.
-       Override so the document scrolls naturally when content overflows. */
     height: auto;
     min-height: 100%;
+    color-scheme: dark;
   }
+
+  body {
+    background-color: var(--base-dark-bg);
+    color: var(--foreground);
+    min-height: 100vh;
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    /* Playful cartoon alpine backdrop */
+    background-image:
+      radial-gradient(circle at 15% 15%, rgba(249, 115, 22, 0.09) 0%, transparent 45%),
+      radial-gradient(circle at 85% 85%, rgba(139, 92, 246, 0.12) 0%, transparent 50%),
+      radial-gradient(circle at 50% 0%, rgba(56, 189, 248, 0.08) 0%, transparent 40%),
+      url("data:image/svg+xml,%3Csvg width='40' height='40' viewBox='0 0 40 40' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='%23ffffff' fill-opacity='0.02' fill-rule='evenodd'%3E%3Cpath d='M0 40L40 0H20L0 20M40 40V20L20 40'/%3E%3C/g%3E%3C/svg%3E");
+    background-attachment: fixed;
+  }
+}
+
+/* ==========================================================================
+   CARVED WOODEN CHESSBOARD TRAY
+   ========================================================================== */
+
+.camp-board-tray {
+  position: relative;
+  border-radius: 14px;
+  background: linear-gradient(145deg, #382419 0%, #20140e 100%);
+  border: 6px solid #000000;
+  box-shadow: 6px 6px 0px #000000, 0 16px 30px rgba(0, 0, 0, 0.6);
+  padding: 10px;
+}
+
+/* Inlaid brass accent pinstripe */
+.camp-board-tray::before {
+  content: "";
+  position: absolute;
+  inset: 4px;
+  border-radius: 8px;
+  border: 1.5px solid rgba(251, 191, 36, 0.4);
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.8);
+  pointer-events: none;
+}
+
+/* Contact shadow on custom piece wrappers */
+.camp-piece-wrapper {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px;
+  box-sizing: border-box;
+  filter: drop-shadow(0 4px 3px rgba(0, 0, 0, 0.6));
+  transition: transform 0.1s ease;
+}
+
+.camp-piece-wrapper:hover {
+  transform: translateY(-2px);
+}
+
+/* ==========================================================================
+   VIBRANT PLAYFUL CARTOON UI COMPONENTS
+   ========================================================================== */
+
+/* Chunky Tactile Buttons */
+.camp-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-weight: 800;
+  font-size: 0.95rem;
+  letter-spacing: 0.02em;
+  border: 2.5px solid #000000;
+  border-radius: 12px;
+  padding: 10px 20px;
+  cursor: pointer;
+  user-select: none;
+  text-decoration: none;
+  box-shadow: 0 4px 0 #000000;
+  transition: transform 0.08s ease, box-shadow 0.08s ease, filter 0.15s ease;
+}
+
+.camp-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 5px 0 #000000;
+  filter: brightness(1.05);
+}
+
+.camp-btn:active {
+  transform: translateY(3px);
+  box-shadow: 0 1px 0 #000000;
+}
+
+.camp-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: 0 2px 0 #000000;
+}
+
+/* Vibrant Button Flavors */
+.camp-btn-ember {
+  background: linear-gradient(180deg, #fb923c 0%, #f97316 100%);
+  color: #ffffff;
+}
+
+.camp-btn-yellow {
+  background: linear-gradient(180deg, #fde047 0%, #facc15 100%);
+  color: #1a1505;
+}
+
+.camp-btn-teal {
+  background: linear-gradient(180deg, #34d399 0%, #10b981 100%);
+  color: #ffffff;
+}
+
+.camp-btn-violet {
+  background: linear-gradient(180deg, #a78bfa 0%, #8b5cf6 100%);
+  color: #ffffff;
+}
+
+.camp-btn-slate {
+  background: linear-gradient(180deg, #334155 0%, #1e293b 100%);
+  color: #ffffff;
+}
+
+.camp-btn-white {
+  background: #ffffff;
+  color: #0f172a;
+}
+
+/* Playful Cartoon Cards */
+.camp-card-canvas {
+  background: #fffdfa;
+  color: #0f172a;
+  border: 2.5px solid #000000;
+  box-shadow: 5px 5px 0px #000000;
+  border-radius: 14px;
+}
+
+.camp-card-dark {
+  background: #1e293b;
+  color: #f8fafc;
+  border: 2.5px solid #000000;
+  box-shadow: 5px 5px 0px #000000;
+  border-radius: 14px;
+}
+
+/* Stamped Cartoon Badges */
+.camp-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.72rem;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 3px 10px;
+  border-radius: 9999px;
+  border: 2px solid #000000;
+  box-shadow: 2px 2px 0px #000000;
+}
+
+.camp-badge-yellow {
+  background: #fde047;
+  color: #000000;
+}
+
+.camp-badge-orange {
+  background: #fb923c;
+  color: #ffffff;
+}
+
+.camp-badge-teal {
+  background: #34d399;
+  color: #064e3b;
+}
+
+.camp-badge-violet {
+  background: #c084fc;
+  color: #3b0764;
+}
+
+.camp-badge-slate {
+  background: #475569;
+  color: #ffffff;
 }
