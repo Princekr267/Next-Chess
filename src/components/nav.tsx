@@ -29,9 +29,9 @@ export function Nav() {
         <span className="w-9 h-9 rounded-xl bg-amber-400 border-2 border-black shadow-[2px_2px_0px_#000000] flex items-center justify-center text-black text-lg font-black">
           ♟
         </span>
-        <div className="flex items-center gap-1.5">
-          <span className="text-amber-400">CHESS</span>
-          <span className="text-white">BASE</span>
+        <div className="flex items-center gap-0.5">
+          <span className="text-amber-400">NEXT-</span>
+          <span className="text-white">CHESS</span>
         </div>
       </Link>
 

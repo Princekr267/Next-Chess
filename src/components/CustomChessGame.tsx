@@ -1,11 +1,12 @@
 "use client";
 import { useState, useMemo, useRef, useEffect } from "react";
-import { Chess } from "chess.js";
+import { Chess, Square } from "chess.js";
 import { Chessboard } from "react-chessboard";
 
 export function CustomChessGame() {
   const game = useMemo(() => new Chess(), []);
   const [fen, setFen] = useState(game.fen());
+  const [selectedSquare, setSelectedSquare] = useState<Square | null>(null);
 
   // ---- Responsive sizing ----
   const containerRef = useRef<HTMLDivElement>(null);
@@ -39,6 +40,35 @@ export function CustomChessGame() {
       return true;
     } catch {
       return false;
+    }
+  }
+  function onSquareClick({ square }: { square: string }) {
+    const clickedSquare = square as Square;
+
+    if (selectedSquare) {
+      try {
+        const move = game.move({
+          from: selectedSquare,
+          to: clickedSquare,
+          promotion: "q",
+        });
+
+        if (move) {
+          setFen(game.fen());
+          setSelectedSquare(null);
+          return;
+        }
+      } catch {
+        // The clicked square is not a legal destination.
+      }
+    }
+
+    const piece = game.get(clickedSquare);
+
+    if (piece && piece.color === game.turn()) {
+      setSelectedSquare(clickedSquare);
+    } else {
+      setSelectedSquare(null);
     }
   }
 
@@ -94,6 +124,36 @@ export function CustomChessGame() {
     bQ: makePiece("/bq_no_bg.png", "Black queen", "100%"),
   };
 
+  function buildSquareStyles(): Record<string, React.CSSProperties> {
+    const styles: Record<string, React.CSSProperties> = {};
+
+    if (!selectedSquare) {
+      return styles;
+    }
+
+    styles[selectedSquare] = {
+      backgroundColor: "rgba(30, 144, 255, 0.4)",
+    };
+
+    const legalMoves = game.moves({
+      square: selectedSquare,
+      verbose: true,
+    });
+
+    for (const move of legalMoves) {
+      const isCapture = move.captured != null;
+
+      styles[move.to] = {
+        background: isCapture
+          ? "radial-gradient(circle, transparent 55%, rgba(220, 20, 60, 0.55) 55%)"
+          : "radial-gradient(circle, rgba(0, 0, 0, 0.3) 20%, transparent 20%)",
+        borderRadius: "50%",
+      };
+    }
+
+    return styles;
+  }
+
   return (
     <div
       ref={containerRef}
@@ -110,6 +170,8 @@ export function CustomChessGame() {
           id: "custom-board",
           position: fen,
           onPieceDrop,
+          onSquareClick,
+          squareStyles: buildSquareStyles(),
           pieces,
           boardStyle: {
             borderRadius: "6px",
