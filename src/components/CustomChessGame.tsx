@@ -8,6 +8,10 @@ export function CustomChessGame() {
   const [fen, setFen] = useState(game.fen());
   const [selectedSquare, setSelectedSquare] = useState<Square | null>(null);
 
+  const [turn, setTurn] = useState<"White" | "Black">(
+    game.turn() === "w" ? "White" : "Black"
+  );
+  
   // ---- Responsive sizing ----
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -37,6 +41,8 @@ export function CustomChessGame() {
       const move = game.move({ from: sourceSquare, to: targetSquare, promotion: "q" });
       if (move === null) return false;
       setFen(game.fen());
+      setTurn(game.turn() === "w" ? "White" : "Black");
+      setSelectedSquare(null);
       return true;
     } catch {
       return false;
@@ -55,6 +61,7 @@ export function CustomChessGame() {
 
         if (move) {
           setFen(game.fen());
+          setTurn(game.turn() === "w" ? "White" : "Black");
           setSelectedSquare(null);
           return;
         }
@@ -79,49 +86,53 @@ export function CustomChessGame() {
     height: "100%",
     objectFit: "contain" as const,
     pointerEvents: "none" as const,
+    display: "block",
   };
 
   // Wrapper handles ambient contact shadow grounding the glossy pieces on the wood
-  const makePiece = (src: string, alt: string, size = "100%") => () => (
-    <div
-      className="camp-piece-wrapper"
-      style={{
-        width: "100%",
-        height: "100%",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        padding: "2px",
-        boxSizing: "border-box",
-        filter: "drop-shadow(0 4px 3px rgba(14, 9, 6, 0.52))",
-      }}
-    >
-      <img
-        src={src}
-        alt={alt}
-        draggable={false}
-        style={{
-          ...pieceStyle,
-          width: size,
-          height: size,
-        }}
-      />
-    </div>
-  );
+  const makePiece = (src: string, alt: string, size = "86%") =>
+    function ChessPiece() {
+      return (
+        <div
+          className="camp-piece-wrapper"
+          style={{
+            width: "100%",
+            height: "100%",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            boxSizing: "border-box",
+          }}
+        >
+          <img
+            src={src}
+            alt={alt}
+            draggable={false}
+            style={{
+              ...pieceStyle,
+              width: size,
+              height: size,
+              maxWidth: size,
+              maxHeight: size,
+            }}
+          />
+        </div>
+      );
+    };
 
   const pieces = {
-    wP: makePiece("/wp_no_bg.png", "White pawn", "82%"),
-    wN: makePiece("/wh_no_bg.png", "White knight", "70%"),
-    wK: makePiece("/wk_no_bg.png", "White king", "66%"),
-    wB: makePiece("/wb_no_bg.png", "Black bishop", "100%"),
-    wR: makePiece("/wr_no_bg.png", "White rook", "66%"),
-    wQ: makePiece("/wq_no_bg.png", "White queen", "66%"),
-    bP: makePiece("/bp_no_bg.png", "Black pawn", "110%"),
-    bN: makePiece("/bh_no_bg.png", "Black knight", "100%"),
-    bK: makePiece("/bk_no_bg.png", "Black king", "100%"),
-    bB: makePiece("/bb_no_bg.png", "Black Bishop", "100%"),
-    bR: makePiece("/br_no_bg.png", "Black Rook", "100%"),
-    bQ: makePiece("/bq_no_bg.png", "Black queen", "100%"),
+    wP: makePiece("/wp_no_bg.png", "White pawn", "74%"),
+    wN: makePiece("/wh_no_bg.png", "White knight", "86%"),
+    wK: makePiece("/wk_no_bg.png", "White king", "86%"),
+    wB: makePiece("/wb_no_bg.png", "White bishop", "86%"),
+    wR: makePiece("/wr_no_bg.png", "White rook", "86%"),
+    wQ: makePiece("/wq_no_bg.png", "White queen", "86%"),
+    bP: makePiece("/bp_no_bg.png", "Black pawn", "86%"),
+    bN: makePiece("/bh_no_bg.png", "Black knight", "86%"),
+    bK: makePiece("/bk_no_bg.png", "Black king", "86%"),
+    bB: makePiece("/bb_no_bg.png", "Black bishop", "86%"),
+    bR: makePiece("/br_no_bg.png", "Black rook", "86%"),
+    bQ: makePiece("/bq_no_bg.png", "Black queen", "86%"),
   };
 
   function buildSquareStyles(): Record<string, React.CSSProperties> {
@@ -155,64 +166,86 @@ export function CustomChessGame() {
   }
 
   return (
-    <div
-      ref={containerRef}
-      className="camp-board-tray"
-      style={{
-        width: "100%",
-        maxWidth: 520,
-        aspectRatio: "1 / 1",
-        margin: "0 auto",
-      }}
-    >
-      <Chessboard
-        options={{
-          id: "custom-board",
-          position: fen,
-          onPieceDrop,
-          onSquareClick,
-          squareStyles: buildSquareStyles(),
-          pieces,
-          boardStyle: {
-            borderRadius: "6px",
-            boxShadow: "inset 0 0 6px rgba(0,0,0,0.5), 0 2px 6px rgba(0,0,0,0.3)",
-            overflow: "hidden",
-          },
-          darkSquareStyle: {
-            backgroundColor: "#3a2b22",
-            backgroundImage:
-              "linear-gradient(135deg, rgba(78, 56, 45, 0.28) 0%, rgba(45, 31, 24, 0.4) 60%, rgba(26, 17, 12, 0.55) 100%)",
-            boxShadow: "inset 0 0 0 1px rgba(0, 0, 0, 0.25)",
-          },
-          lightSquareStyle: {
-            backgroundColor: "#dfd2bc",
-            backgroundImage:
-              "linear-gradient(135deg, rgba(255, 255, 255, 0.22) 0%, rgba(210, 194, 168, 0.25) 50%, rgba(184, 166, 138, 0.35) 100%)",
-            boxShadow: "inset 0 0 0 1px rgba(180, 158, 128, 0.3)",
-          },
-          dropSquareStyle: {
-            boxShadow: "inset 0 0 0 3px #d97724, inset 0 0 10px rgba(217, 119, 36, 0.4)",
-          },
-          darkSquareNotationStyle: {
-            color: "rgba(223, 210, 188, 0.65)",
-            fontWeight: 700,
-            fontSize: "11px",
-            fontFamily: "inherit",
-            padding: "2px 4px",
-            userSelect: "none",
-          },
-          lightSquareNotationStyle: {
-            color: "rgba(58, 43, 34, 0.75)",
-            fontWeight: 700,
-            fontSize: "11px",
-            fontFamily: "inherit",
-            padding: "2px 4px",
-            userSelect: "none",
-          },
-          animationDurationInMs: 200,
-          showNotation: true,
+    <div className="flex flex-col items-center gap-3">
+      <span
+        className={`camp-badge shadow-[2px_2px_0px_#000000] text-sm px-4 py-1 ${
+          turn === "White" ? "camp-badge-yellow" : "camp-badge-slate"
+        }`}
+        
+      >
+        ♟ {turn} to move
+      </span>
+      <div
+        ref={containerRef}
+        className="camp-board-tray"
+        style={{
+          width: "100%",
+          maxWidth: 520,
+          aspectRatio: "1 / 1",
+          margin: "0 auto",
         }}
-      />
+        // onClick={setTurn}
+      >
+        <Chessboard
+          options={{
+            id: "custom-board",
+            position: fen,
+            onPieceDrop,
+            onSquareClick,
+            squareStyles: buildSquareStyles(),
+            pieces,
+            boardStyle: {
+              borderRadius: "6px",
+              boxShadow: "inset 0 0 6px rgba(0,0,0,0.5), 0 2px 6px rgba(0,0,0,0.3)",
+              overflow: "hidden",
+              aspectRatio: "1 / 1",
+            },
+            darkSquareStyle: {
+              backgroundColor: "#3a2b22",
+              backgroundImage:
+                "linear-gradient(135deg, rgba(78, 56, 45, 0.28) 0%, rgba(45, 31, 24, 0.4) 60%, rgba(26, 17, 12, 0.55) 100%)",
+              boxShadow: "inset 0 0 0 1px rgba(0, 0, 0, 0.25)",
+            },
+            lightSquareStyle: {
+              backgroundColor: "#dfd2bc",
+              backgroundImage:
+                "linear-gradient(135deg, rgba(255, 255, 255, 0.22) 0%, rgba(210, 194, 168, 0.25) 50%, rgba(184, 166, 138, 0.35) 100%)",
+              boxShadow: "inset 0 0 0 1px rgba(180, 158, 128, 0.3)",
+            },
+            dropSquareStyle: {
+              boxShadow: "inset 0 0 0 3px #d97724, inset 0 0 10px rgba(217, 119, 36, 0.4)",
+            },
+            darkSquareNotationStyle: {
+              position: "absolute",
+              top: 0,
+              left: 0,
+              width: "100%",
+              height: "100%",
+              pointerEvents: "none",
+              color: "rgba(223, 210, 188, 0.65)",
+              fontWeight: 700,
+              fontSize: "11px",
+              fontFamily: "inherit",
+              userSelect: "none",
+            },
+            lightSquareNotationStyle: {
+              position: "absolute",
+              top: 0,
+              left: 0,
+              width: "100%",
+              height: "100%",
+              pointerEvents: "none",
+              color: "rgba(58, 43, 34, 0.75)",
+              fontWeight: 700,
+              fontSize: "11px",
+              fontFamily: "inherit",
+              userSelect: "none",
+            },
+            animationDurationInMs: 200,
+            showNotation: true,
+          }}
+        />
+      </div>
     </div>
   );
 }
