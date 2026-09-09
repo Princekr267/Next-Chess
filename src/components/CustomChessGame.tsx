@@ -7,6 +7,8 @@ export function CustomChessGame() {
   const game = useMemo(() => new Chess(), []);
   const [fen, setFen] = useState(game.fen());
   const [selectedSquare, setSelectedSquare] = useState<Square | null>(null);
+  const [playerOne, setPlayerOne] = useState("Player 1")
+  const [playerTwo, setPlayerTwo] = useState("Player 2")
 
   const [turn, setTurn] = useState<"White" | "Black">(
     game.turn() === "w" ? "White" : "Black"
@@ -175,6 +177,10 @@ export function CustomChessGame() {
       >
         ♟ {turn} to move
       </span>
+      <div>
+        <label htmlFor="opponent">Opponent: </label>
+        <input id="opponent" type="text" value={playerTwo} onChange={(e) => setPlayerOne(e.target.value)}/>
+      </div>
       <div
         ref={containerRef}
         className="camp-board-tray"
@@ -245,6 +251,10 @@ export function CustomChessGame() {
             showNotation: true,
           }}
         />
+      </div>
+      <div>
+        <label htmlFor="you">You: </label>
+        <input id="you" type="text" value={playerOne} onChange={(e) => setPlayerOne(e.target.value)}/>
       </div>
     </div>
   );
