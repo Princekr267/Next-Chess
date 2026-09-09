@@ -61,7 +61,7 @@ export function CustomChessGame() {
   // Restore game state from localStorage on mount
   useEffect(() => {
     try {
-      const saved = localStorage.getItem("chess_base_local_game");
+      const saved = localStorage.getItem("next_chess_local_game") || localStorage.getItem("chess_base_local_game");
       if (saved) {
         const data = JSON.parse(saved);
         if (data.pgn) {
@@ -97,7 +97,7 @@ export function CustomChessGame() {
     if (!isRestoredRef.current) return;
     try {
       localStorage.setItem(
-        "chess_base_local_game",
+        "next_chess_local_game",
         JSON.stringify({
           fen,
           pgn: game.pgn(),
@@ -251,6 +251,7 @@ export function CustomChessGame() {
       setPlayerOne(session.user.name);
     }
     try {
+      localStorage.removeItem("next_chess_local_game");
       localStorage.removeItem("chess_base_local_game");
     } catch {}
   }

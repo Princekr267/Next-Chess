@@ -21,7 +21,7 @@ export function Nav() {
 
   return (
     <nav className="relative z-50 flex items-center justify-between px-6 py-3.5 bg-[#0f172a] border-b-[2.5px] border-black shadow-[0_4px_0_#000000]">
-      {/* Brand logo & title: Chess Base */}
+      {/* Brand logo & title: Next-Chess */}
       <Link
         href="/"
         className="font-black text-xl tracking-tight text-white hover:scale-105 active:scale-95 transition-transform flex items-center gap-2.5"

@@ -55,7 +55,7 @@ export default function SignInPage() {
             👑
           </div>
           <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-gray-950">
-            Welcome to Chess Base
+            Welcome to Next-Chess
           </h1>
           <p className="text-gray-600 text-xs sm:text-sm font-medium mt-1">
             Sign in to track your tactical match ratings & history
@@ -86,7 +86,7 @@ export default function SignInPage() {
             <input
               id="email"
               type="email"
-              placeholder="tactician@chessbase.com"
+              placeholder="tactician@nextchess.com"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required

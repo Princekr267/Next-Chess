@@ -36,14 +36,14 @@ export function HowItWorks() {
     router.push("/modes");
   };
 
-  const buttonLabel = isPending ? "Checking..." : session ? "Enter Chess Base & Play" : "Play as a Guest";
+  const buttonLabel = isPending ? "Checking..." : session ? "Enter Next-Chess & Play" : "Play as a Guest";
 
   return (
     <section className="py-20 px-4 w-full">
       <div className="mx-auto max-w-5xl">
         <div className="text-center mb-16">
           <span className="camp-badge camp-badge-yellow mb-3 shadow-[2px_2px_0px_#000000]">
-            ♟ WELCOME TO CHESS BASE
+            ♟ WELCOME TO NEXT-CHESS
           </span>
           <motion.h2
             initial={{ opacity: 0, y: 16 }}
@@ -52,7 +52,7 @@ export function HowItWorks() {
             transition={{ duration: 0.4 }}
             className="text-3xl sm:text-4xl md:text-5xl font-black tracking-tight text-white mb-3"
           >
-            How <span className="text-amber-400">Chess Base</span> Works
+            How <span className="text-amber-400">Next-Chess</span> Works
           </motion.h2>
           <p className="text-slate-300 text-sm sm:text-base max-w-lg mx-auto font-medium">
             Jump in, challenge a bot, or sit across the board with a friend for fireside chess.

@@ -53,7 +53,7 @@ function PlayContent() {
           </div>
 
           <span className="camp-badge camp-badge-orange mb-3">
-            COMING SOON TO CHESS BASE
+            COMING SOON TO NEXT-CHESS
           </span>
 
           <h2 className="text-2xl font-black text-gray-950 mb-2">
@@ -90,7 +90,7 @@ function PlayContent() {
       ? "Friend Duel"
       : mode === "local"
       ? "Local Board (Pass & Play)"
-      : "Chess Base Board";
+      : "Next-Chess Board";
 
   return (
     <div className="p-4 sm:p-8 max-w-5xl mx-auto w-full">
@@ -131,7 +131,7 @@ function PlayContent() {
             {modeTitle}
           </h1>
           <span className="camp-badge camp-badge-yellow text-[10px] hidden sm:inline-flex">
-            CHESS BASE
+            NEXT-CHESS
           </span>
         </div>
 
@@ -153,7 +153,7 @@ function PlayContent() {
 
 export default function PlayPage() {
   return (
-    <Suspense fallback={<div className="p-12 text-center text-amber-300 text-sm font-black tracking-wider uppercase">Loading Chess Base Board...</div>}>
+    <Suspense fallback={<div className="p-12 text-center text-amber-300 text-sm font-black tracking-wider uppercase">Loading Next-Chess Board...</div>}>
       <PlayContent />
     </Suspense>
   );
