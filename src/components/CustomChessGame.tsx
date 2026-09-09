@@ -8,8 +8,6 @@ export function CustomChessGame() {
   const game = useMemo(() => new Chess(), []);
   const [fen, setFen] = useState(game.fen());
   const [selectedSquare, setSelectedSquare] = useState<Square | null>(null);
-  const [playerOne, setPlayerOne] = useState("Player 1");
-  const [playerTwo, setPlayerTwo] = useState("Player 2");
 
   // The logged-in user always plays White in local pass-and-play, matching
   // the "You" input below the board. Adjust here if you later add color choice.
@@ -20,6 +18,9 @@ export function CustomChessGame() {
   );
 
   const { data: session } = authClient.useSession();
+
+  const [playerOne, setPlayerOne] = useState(session?.user?.name || "Player 1");
+  const [playerTwo, setPlayerTwo] = useState("Player 2");
 
   // Guard so we only ever save once per finished game, even if state updates twice
   const savedRef = useRef(false);
@@ -43,16 +44,22 @@ export function CustomChessGame() {
         }
         setFen(game.fen());
         setTurn(game.turn() === "w" ? "White" : "Black");
-        if (data.playerOne) setPlayerOne(data.playerOne);
+        if (data.playerOne && data.playerOne !== "Player 1") {
+          setPlayerOne(data.playerOne);
+        } else if (session?.user?.name) {
+          setPlayerOne(session.user.name);
+        }
         if (data.playerTwo) setPlayerTwo(data.playerTwo);
         if (typeof data.savedRef === "boolean") savedRef.current = data.savedRef;
+      } else if (session?.user?.name) {
+        setPlayerOne(session.user.name);
       }
     } catch (err) {
       console.error("Failed to restore game from localStorage:", err);
     } finally {
       isRestoredRef.current = true;
     }
-  }, [game]);
+  }, [game, session?.user?.name]);
 
   // Persist game state to localStorage whenever moves or player names change
   useEffect(() => {
@@ -73,12 +80,12 @@ export function CustomChessGame() {
     }
   }, [fen, playerOne, playerTwo, game]);
 
-  // Default Player 1 to logged in user's name if session is available and not already customized
+  // Automatically update Player 1 to signed in user's name when session loads
   useEffect(() => {
-    if (session?.user?.name && playerOne === "Player 1" && !localStorage.getItem("chess_base_local_game")) {
-      setPlayerOne(session.user.name);
+    if (session?.user?.name) {
+      setPlayerOne((prev) => (prev === "Player 1" || !prev ? session.user.name : prev));
     }
-  }, [session, playerOne]);
+  }, [session?.user?.name]);
 
   const [confirmReset, setConfirmReset] = useState(false);
 
@@ -90,9 +97,12 @@ export function CustomChessGame() {
     savedRef.current = false;
     setSaveStatus("idle");
     setConfirmReset(false);
+    if (session?.user?.name) {
+      setPlayerOne(session.user.name);
+    }
     try {
       localStorage.removeItem("chess_base_local_game");
-    } catch {}
+    } catch { }
   }
 
   function handleNewGame() {
@@ -322,9 +332,8 @@ export function CustomChessGame() {
       <div className="w-full flex items-center justify-between gap-2 px-1">
         <div className="flex items-center gap-2">
           <span
-            className={`camp-badge shadow-[2px_2px_0px_#000000] text-xs sm:text-sm px-3 sm:px-4 py-1 ${
-              turn === "White" ? "camp-badge-yellow" : "camp-badge-slate"
-            }`}
+            className={`camp-badge shadow-[2px_2px_0px_#000000] text-xs sm:text-sm px-3 sm:px-4 py-1 ${turn === "White" ? "camp-badge-yellow" : "camp-badge-slate"
+              }`}
           >
             ♟ {turn} to move
           </span>
@@ -339,9 +348,8 @@ export function CustomChessGame() {
           type="button"
           onClick={handleNewGame}
           title="Start a new game (resets board)"
-          className={`camp-btn text-xs py-1.5 px-3 font-black shadow-[2px_2px_0px_#000000] flex items-center gap-1.5 hover:scale-105 active:scale-95 transition-all ${
-            confirmReset ? "camp-btn-red bg-rose-500 text-white animate-pulse" : "camp-btn-yellow"
-          }`}
+          className={`camp-btn text-xs py-1.5 px-3 font-black shadow-[2px_2px_0px_#000000] flex items-center gap-1.5 hover:scale-105 active:scale-95 transition-all ${confirmReset ? "camp-btn-red bg-rose-500 text-white animate-pulse" : "camp-btn-yellow"
+            }`}
         >
           <span>↺</span>
           <span>{confirmReset ? "Confirm Reset?" : "New Game"}</span>
