@@ -93,30 +93,30 @@ function PlayContent() {
       : "Chess Base Board";
 
   return (
-    <div className="p-4 sm:p-8 max-w-5xl mx-auto w-full">
+    <div className="p-2 sm:p-6 md:p-8 max-w-5xl mx-auto w-full">
       {/* Guest Notice */}
       {showGuestNotice && (
         <motion.div
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
-          className="mb-6 flex items-start justify-between gap-4 rounded-2xl border-[2.5px] border-black bg-amber-400 p-4 text-xs sm:text-sm text-black shadow-[4px_4px_0px_#000000]"
+          className="mb-4 sm:mb-6 flex items-start justify-between gap-3 rounded-2xl border-[2.5px] border-black bg-amber-400 p-3 sm:p-4 text-xs sm:text-sm text-black shadow-[3px_3px_0px_#000000]"
         >
-          <div className="flex items-start gap-3">
-            <span className="w-7 h-7 rounded-xl bg-black text-amber-400 flex items-center justify-center font-black text-sm shrink-0 mt-0.5">
+          <div className="flex items-start gap-2.5">
+            <span className="w-6 h-6 sm:w-7 sm:h-7 rounded-xl bg-black text-amber-400 flex items-center justify-center font-black text-xs sm:text-sm shrink-0 mt-0.5">
               ♟
             </span>
             <div>
-              <p className="font-black tracking-wide text-sm">
+              <p className="font-black tracking-wide text-xs sm:text-sm">
                 PLAYING AS GUEST
               </p>
-              <p className="mt-0.5 font-semibold text-black/80 text-xs leading-relaxed">
+              <p className="mt-0.5 font-semibold text-black/80 text-[11px] sm:text-xs leading-relaxed">
                 Matches are not recorded on your record. Sign in to track wins, losses, and tactical statistics.
               </p>
             </div>
           </div>
           <button
             onClick={() => setShowGuestNotice(false)}
-            className="shrink-0 camp-btn camp-btn-white text-xs py-1 px-3 font-black shadow-[2px_2px_0px_#000000]"
+            className="shrink-0 camp-btn camp-btn-white text-[10px] sm:text-xs py-1 px-2.5 sm:px-3 font-black shadow-[2px_2px_0px_#000000]"
           >
             Got It
           </button>
@@ -124,20 +124,20 @@ function PlayContent() {
       )}
 
       {/* Board Header */}
-      <div className="flex items-center justify-between mb-5 flex-wrap gap-3 pb-3 border-b-[2.5px] border-black/50">
-        <div className="flex items-center gap-2.5">
-          <span className="w-3.5 h-3.5 rounded-full bg-amber-400 border-2 border-black shadow-[1px_1px_0px_#000000]" />
-          <h1 className="text-xl sm:text-2xl font-black text-white tracking-tight">
+      <div className="flex items-center justify-between mb-3 sm:mb-5 flex-wrap gap-2 pb-2 sm:pb-3 border-b-[2.5px] border-black/50">
+        <div className="flex items-center gap-2">
+          <span className="w-3 h-3 sm:w-3.5 sm:h-3.5 rounded-full bg-amber-400 border-2 border-black shadow-[1px_1px_0px_#000000]" />
+          <h1 className="text-lg sm:text-2xl font-black text-white tracking-tight">
             {modeTitle}
           </h1>
-          <span className="camp-badge camp-badge-yellow text-[10px] hidden sm:inline-flex">
+          <span className="camp-badge camp-badge-yellow text-[9px] sm:text-[10px] hidden xs:inline-flex">
             CHESS BASE
           </span>
         </div>
 
         <Link
           href="/modes"
-          className="camp-btn camp-btn-yellow text-xs py-1.5 px-3.5 font-black shadow-[2px_2px_0px_#000000]"
+          className="camp-btn camp-btn-yellow text-[11px] sm:text-xs py-1 px-2.5 sm:py-1.5 sm:px-3.5 font-black shadow-[2px_2px_0px_#000000]"
         >
           ⇄ Change Mode
         </Link>

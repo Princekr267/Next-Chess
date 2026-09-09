@@ -3,7 +3,7 @@ import { useState, useMemo, useRef, useEffect } from "react";
 import { Chess, Square } from "chess.js";
 import { Chessboard } from "react-chessboard";
 import { authClient } from "@/lib/auth-client";
-import { Maximize2, Minimize2 } from "lucide-react";
+import { Maximize2, Minimize2, History, X } from "lucide-react";
 
 export function CustomChessGame() {
   const game = useMemo(() => new Chess(), []);
@@ -119,9 +119,20 @@ export function CustomChessGame() {
     }
   }
 
-  // ---- Fullscreen Handling ----
+  // ---- Fullscreen & Responsive Handling ----
   const gameWrapperRef = useRef<HTMLDivElement>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+  const [showMobileHistory, setShowMobileHistory] = useState(false);
+
+  useEffect(() => {
+    function handleResize() {
+      setIsMobile(window.innerWidth < 768);
+    }
+    handleResize();
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
 
   useEffect(() => {
     function onFullscreenChange() {
@@ -319,6 +330,9 @@ export function CustomChessGame() {
     objectFit: "contain" as const,
     pointerEvents: "none" as const,
     display: "block",
+    touchAction: "none" as const,
+    userSelect: "none" as const,
+    WebkitUserSelect: "none" as const,
   };
 
   const makePiece = (src: string, alt: string, size = "86%") =>
@@ -412,7 +426,7 @@ export function CustomChessGame() {
   const renderBoard = (style?: React.CSSProperties) => (
     <div
       ref={containerRef}
-      className="camp-board-tray w-full shrink-0"
+      className="camp-board-tray w-full shrink-0 touch-none select-none"
       style={{
         aspectRatio: "1 / 1",
         margin: "0 auto",
@@ -432,6 +446,7 @@ export function CustomChessGame() {
             boxShadow: "inset 0 0 8px rgba(0,0,0,0.6), 0 4px 18px rgba(0,0,0,0.45)",
             overflow: "hidden",
             aspectRatio: "1 / 1",
+            touchAction: "none",
           },
           darkSquareStyle: {
             backgroundColor: "#3a2b22",
@@ -457,7 +472,7 @@ export function CustomChessGame() {
             pointerEvents: "none",
             color: "rgba(223, 210, 188, 0.65)",
             fontWeight: 700,
-            fontSize: "12px",
+            fontSize: isMobile ? "9px" : "11px",
             fontFamily: "inherit",
             userSelect: "none",
           },
@@ -470,7 +485,7 @@ export function CustomChessGame() {
             pointerEvents: "none",
             color: "rgba(58, 43, 34, 0.75)",
             fontWeight: 700,
-            fontSize: "12px",
+            fontSize: isMobile ? "9px" : "11px",
             fontFamily: "inherit",
             userSelect: "none",
           },
@@ -481,23 +496,189 @@ export function CustomChessGame() {
     </div>
   );
 
-  // ==========================================
-  // FULLSCREEN ARENA LAYOUT (Maximized board + Side dashboard)
-  // ==========================================
-  if (isFullscreen) {
+  // =========================================================================
+  // 1. MOBILE FULLSCREEN VIEW (Edge-to-edge board, compact bars, no scroll)
+  // =========================================================================
+  if (isFullscreen && isMobile) {
     return (
       <div
         ref={gameWrapperRef}
-        className="fixed inset-0 z-50 bg-[#070b14] p-3 sm:p-5 md:p-6 flex flex-col md:flex-row items-center justify-center gap-4 md:gap-6 lg:gap-8 overflow-y-auto w-full min-h-screen"
+        className="fixed inset-0 z-50 bg-[#070b14] p-2 flex flex-col justify-between items-center w-full h-[100svh] overflow-hidden select-none touch-none"
+      >
+        {/* Top Header: Opponent Info & Quick Controls */}
+        <div className="w-full flex items-center justify-between gap-2 px-1 py-1">
+          <div className="flex items-center gap-2 min-w-0 flex-1">
+            <div className="w-7 h-7 rounded-lg bg-black border border-slate-700 flex items-center justify-center text-xs text-white font-black shadow-[1px_1px_0px_#000] shrink-0">
+              ♟
+            </div>
+            <input
+              id="opponent-mobile-fs"
+              type="text"
+              value={playerTwo}
+              onChange={(e) => setPlayerTwo(e.target.value)}
+              className="bg-black/60 border border-slate-700 rounded px-2 py-0.5 text-xs text-white font-bold focus:outline-none focus:border-amber-400 w-24 xs:w-32 truncate"
+              placeholder="Opponent"
+            />
+          </div>
+
+          <div className="flex items-center gap-1.5 shrink-0">
+            <span
+              className={`camp-badge text-[10px] px-2 py-0.5 shadow-[1px_1px_0px_#000000] ${
+                turn === "White" ? "camp-badge-yellow" : "camp-badge-slate"
+              }`}
+            >
+              ♟ {turn}
+            </span>
+            {isCheck && (
+              <span className="camp-badge camp-badge-red text-[10px] px-1.5 py-0.5 animate-bounce shadow-[1px_1px_0px_#000000]">
+                Check!
+              </span>
+            )}
+            <button
+              type="button"
+              onClick={toggleFullscreen}
+              className="camp-btn camp-btn-white text-xs p-1.5 font-black shadow-[1px_1px_0px_#000000] text-black hover:scale-105 active:scale-95 transition-all"
+              title="Exit Fullscreen"
+            >
+              <Minimize2 className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+
+        {/* Massive Chessboard Centered on Mobile */}
+        <div className="flex-1 flex items-center justify-center w-full my-auto overflow-hidden">
+          {renderBoard({
+            width: "min(98vw, calc(100svh - 150px), 520px)",
+            maxWidth: "100%",
+          })}
+        </div>
+
+        {/* Bottom Footer: Player Info & Actions */}
+        <div className="w-full flex items-center justify-between gap-2 px-1 py-1">
+          <div className="flex items-center gap-2 min-w-0 flex-1">
+            <div className="w-7 h-7 rounded-lg bg-amber-400 border border-black flex items-center justify-center text-xs text-black font-black shadow-[1px_1px_0px_#000] shrink-0">
+              ♙
+            </div>
+            <input
+              id="you-mobile-fs"
+              type="text"
+              value={playerOne}
+              onChange={(e) => setPlayerOne(e.target.value)}
+              className="bg-black/60 border border-slate-700 rounded px-2 py-0.5 text-xs text-white font-bold focus:outline-none focus:border-amber-400 w-24 xs:w-32 truncate"
+              placeholder="You"
+            />
+          </div>
+
+          <div className="flex items-center gap-1.5 shrink-0">
+            <button
+              type="button"
+              onClick={() => setShowMobileHistory((prev) => !prev)}
+              className="camp-btn camp-btn-slate text-[11px] py-1 px-2 font-bold shadow-[1px_1px_0px_#000000] flex items-center gap-1 hover:scale-105 active:scale-95 transition-all"
+              title="View moves"
+            >
+              <History className="w-3.5 h-3.5" />
+              <span>{moves.length}</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={handleNewGame}
+              className={`camp-btn text-[11px] py-1 px-2.5 font-black shadow-[1px_1px_0px_#000000] flex items-center gap-1 hover:scale-105 active:scale-95 transition-all ${
+                confirmReset ? "camp-btn-red bg-rose-500 text-white animate-pulse" : "camp-btn-yellow"
+              }`}
+            >
+              <span>↺</span>
+              <span>{confirmReset ? "Reset?" : "New"}</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Mobile Move History Popover Drawer */}
+        {showMobileHistory && (
+          <div className="absolute inset-x-2 bottom-14 z-50 rounded-2xl bg-slate-900/95 border-[2.5px] border-black p-3.5 shadow-[0_8px_30px_rgba(0,0,0,0.85)] backdrop-blur-md max-h-[50vh] flex flex-col animate-in fade-in slide-in-from-bottom duration-200">
+            <div className="flex items-center justify-between pb-2 mb-2 border-b border-slate-800">
+              <span className="text-xs font-black uppercase tracking-wider text-amber-300 flex items-center gap-1.5">
+                <History className="w-3.5 h-3.5" /> Match Moves ({moves.length})
+              </span>
+              <button
+                type="button"
+                onClick={() => setShowMobileHistory(false)}
+                className="p-1 text-slate-400 hover:text-white"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto pr-1 space-y-1 font-mono text-xs max-h-44">
+              {movePairs.length === 0 ? (
+                <div className="text-slate-500 text-xs italic py-4 text-center">
+                  No moves played yet
+                </div>
+              ) : (
+                movePairs.map((pair) => (
+                  <div
+                    key={pair.num}
+                    className="flex items-center justify-between px-2 py-1 rounded bg-black/40 text-slate-300"
+                  >
+                    <span className="text-slate-500 w-7 font-bold">{pair.num}.</span>
+                    <span className="text-amber-300 font-semibold flex-1">{pair.white}</span>
+                    <span className="text-slate-200 font-semibold flex-1 text-right">{pair.black || "—"}</span>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Mobile Result Overlay Banner */}
+        {result && (
+          <div className="absolute inset-x-4 top-1/2 -translate-y-1/2 z-50 camp-card-canvas p-4 text-sm font-black text-center shadow-[6px_6px_0px_#000000] border-[2.5px] border-black animate-in zoom-in-95 duration-200">
+            <div className="text-lg font-black mb-1">
+              {result === "draw" ? "Game drawn." : result === "win" ? "You won! 🎉" : "You lost."}
+            </div>
+            {!session && (
+              <p className="text-xs font-medium text-gray-600 mb-2">
+                Sign in to save match results to your history.
+              </p>
+            )}
+            {session && saveStatus === "saving" && (
+              <p className="text-xs font-medium text-gray-600 mb-2">Saving match…</p>
+            )}
+            {session && saveStatus === "saved" && (
+              <p className="text-xs font-medium text-emerald-700 mb-2">Saved to your match history.</p>
+            )}
+            {session && saveStatus === "error" && (
+              <p className="text-xs font-medium text-red-600 mb-2">Couldn't save match — try again.</p>
+            )}
+            <button
+              type="button"
+              onClick={resetGame}
+              className="camp-btn camp-btn-ember text-xs py-2 px-5 font-black shadow-[2px_2px_0px_#000000]"
+            >
+              Play Again
+            </button>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // =========================================================================
+  // 2. DESKTOP FULLSCREEN ARENA (Maximized board + Dedicated side dashboard)
+  // =========================================================================
+  if (isFullscreen && !isMobile) {
+    return (
+      <div
+        ref={gameWrapperRef}
+        className="fixed inset-0 z-50 bg-[#070b14] p-3 sm:p-5 md:p-6 flex flex-row items-center justify-center gap-6 lg:gap-8 overflow-y-auto w-full min-h-screen"
       >
         {/* Massive Chessboard Centerpiece */}
         {renderBoard({
-          width: "min(92vh, calc(100vw - 370px), 860px)",
+          width: "min(92vh, calc(100vw - 380px), 860px)",
           maxWidth: "100%",
         })}
 
         {/* Side Control & Information Dashboard */}
-        <div className="w-full md:w-80 lg:w-96 flex flex-col gap-3 shrink-0 max-h-[92vh] justify-between">
+        <div className="w-80 lg:w-96 flex flex-col gap-3 shrink-0 max-h-[92vh] justify-between">
           {/* Top Status & Exit Bar */}
           <div className="flex items-center justify-between gap-2 px-1">
             <div className="flex items-center gap-2">
@@ -650,52 +831,52 @@ export function CustomChessGame() {
     );
   }
 
-  // ==========================================
-  // NORMAL COMPACT VIEW (Max 520px)
-  // ==========================================
+  // =========================================================================
+  // 3. NORMAL COMPACT VIEW (Mobile & Desktop, Max 520px)
+  // =========================================================================
   return (
     <div
       ref={gameWrapperRef}
-      className="flex flex-col items-center gap-3 w-full max-w-[520px] mx-auto transition-all"
+      className="flex flex-col items-center gap-2.5 sm:gap-3 w-full max-w-[min(98vw,520px)] mx-auto transition-all"
     >
       {/* Top Status and Actions Bar */}
-      <div className="w-full flex items-center justify-between gap-2 px-1">
-        <div className="flex items-center gap-2">
+      <div className="w-full flex items-center justify-between gap-1.5 sm:gap-2 px-1">
+        <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
           <span
-            className={`camp-badge shadow-[2px_2px_0px_#000000] text-xs sm:text-sm px-3 sm:px-4 py-1 ${
+            className={`camp-badge shadow-[2px_2px_0px_#000000] text-[11px] sm:text-sm px-2.5 sm:px-4 py-1 ${
               turn === "White" ? "camp-badge-yellow" : "camp-badge-slate"
             }`}
           >
             ♟ {turn} to move
           </span>
           {isCheck && (
-            <span className="camp-badge camp-badge-red shadow-[2px_2px_0px_#000000] text-xs px-2.5 py-1 animate-bounce">
+            <span className="camp-badge camp-badge-red shadow-[2px_2px_0px_#000000] text-[11px] sm:text-xs px-2 py-0.5 sm:px-2.5 sm:py-1 animate-bounce">
               ⚠️ Check!
             </span>
           )}
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
           <button
             type="button"
             onClick={toggleFullscreen}
             title="Play Fullscreen"
-            className="camp-btn camp-btn-white text-xs py-1.5 px-2.5 font-black shadow-[2px_2px_0px_#000000] flex items-center gap-1.5 hover:scale-105 active:scale-95 transition-all text-black"
+            className="camp-btn camp-btn-white text-xs py-1 px-2 sm:py-1.5 sm:px-2.5 font-black shadow-[2px_2px_0px_#000000] flex items-center gap-1 sm:gap-1.5 hover:scale-105 active:scale-95 transition-all text-black"
           >
             <Maximize2 className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Fullscreen</span>
+            <span className="hidden xs:inline">Fullscreen</span>
           </button>
 
           <button
             type="button"
             onClick={handleNewGame}
             title="Start a new game (resets board)"
-            className={`camp-btn text-xs py-1.5 px-3 font-black shadow-[2px_2px_0px_#000000] flex items-center gap-1.5 hover:scale-105 active:scale-95 transition-all ${
+            className={`camp-btn text-xs py-1 px-2.5 sm:py-1.5 sm:px-3 font-black shadow-[2px_2px_0px_#000000] flex items-center gap-1 sm:gap-1.5 hover:scale-105 active:scale-95 transition-all ${
               confirmReset ? "camp-btn-red bg-rose-500 text-white animate-pulse" : "camp-btn-yellow"
             }`}
           >
             <span>↺</span>
-            <span>{confirmReset ? "Confirm Reset?" : "New Game"}</span>
+            <span>{confirmReset ? "Reset?" : "New Game"}</span>
           </button>
         </div>
       </div>
@@ -732,12 +913,12 @@ export function CustomChessGame() {
 
       {/* Opponent (Black) Card */}
       <div className="w-full flex items-center justify-between px-3 py-2 rounded-xl bg-slate-900/90 border-[2px] border-black shadow-[3px_3px_0px_#000000]">
-        <div className="flex items-center gap-2">
-          <div className="w-6 h-6 rounded-lg bg-black border border-slate-700 flex items-center justify-center text-xs text-white font-black shadow-[1px_1px_0px_#000]">
+        <div className="flex items-center gap-2 min-w-0 flex-1">
+          <div className="w-6 h-6 rounded-lg bg-black border border-slate-700 flex items-center justify-center text-xs text-white font-black shadow-[1px_1px_0px_#000] shrink-0">
             ♟
           </div>
-          <div className="flex items-center gap-1.5">
-            <label htmlFor="opponent" className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+          <div className="flex items-center gap-1.5 min-w-0 flex-1">
+            <label htmlFor="opponent" className="text-[11px] font-bold text-slate-400 uppercase tracking-wider shrink-0">
               Black:
             </label>
             <input
@@ -745,28 +926,28 @@ export function CustomChessGame() {
               type="text"
               value={playerTwo}
               onChange={(e) => setPlayerTwo(e.target.value)}
-              className="bg-black/60 border border-slate-700 rounded-md px-2 py-0.5 text-xs text-white font-bold focus:outline-none focus:border-amber-400 transition-colors w-32 sm:w-44"
+              className="bg-black/60 border border-slate-700 rounded-md px-2 py-0.5 text-xs text-white font-bold focus:outline-none focus:border-amber-400 transition-colors w-24 xs:w-32 sm:w-44"
             />
           </div>
         </div>
         {turn === "Black" && (
-          <span className="text-[10px] font-black uppercase tracking-wider bg-slate-700 text-amber-300 px-2 py-0.5 rounded-full border border-black shadow-[1px_1px_0px_#000000] animate-pulse">
+          <span className="text-[10px] font-black uppercase tracking-wider bg-slate-700 text-amber-300 px-2 py-0.5 rounded-full border border-black shadow-[1px_1px_0px_#000000] animate-pulse shrink-0">
             To Move
           </span>
         )}
       </div>
 
       {/* Board Tray */}
-      {renderBoard({ maxWidth: 520 })}
+      {renderBoard({ maxWidth: "min(98vw, 520px)" })}
 
       {/* Player (White / You) Card */}
       <div className="w-full flex items-center justify-between px-3 py-2 rounded-xl bg-slate-900/90 border-[2px] border-black shadow-[3px_3px_0px_#000000]">
-        <div className="flex items-center gap-2">
-          <div className="w-6 h-6 rounded-lg bg-amber-400 border border-black flex items-center justify-center text-xs text-black font-black shadow-[1px_1px_0px_#000]">
+        <div className="flex items-center gap-2 min-w-0 flex-1">
+          <div className="w-6 h-6 rounded-lg bg-amber-400 border border-black flex items-center justify-center text-xs text-black font-black shadow-[1px_1px_0px_#000] shrink-0">
             ♙
           </div>
-          <div className="flex items-center gap-1.5">
-            <label htmlFor="you" className="text-[11px] font-bold text-amber-400/90 uppercase tracking-wider">
+          <div className="flex items-center gap-1.5 min-w-0 flex-1">
+            <label htmlFor="you" className="text-[11px] font-bold text-amber-400/90 uppercase tracking-wider shrink-0">
               White (You):
             </label>
             <input
@@ -774,12 +955,12 @@ export function CustomChessGame() {
               type="text"
               value={playerOne}
               onChange={(e) => setPlayerOne(e.target.value)}
-              className="bg-black/60 border border-slate-700 rounded-md px-2 py-0.5 text-xs text-white font-bold focus:outline-none focus:border-amber-400 transition-colors w-32 sm:w-44"
+              className="bg-black/60 border border-slate-700 rounded-md px-2 py-0.5 text-xs text-white font-bold focus:outline-none focus:border-amber-400 transition-colors w-24 xs:w-32 sm:w-44"
             />
           </div>
         </div>
         {turn === "White" && (
-          <span className="text-[10px] font-black uppercase tracking-wider bg-amber-400 text-black px-2 py-0.5 rounded-full border border-black shadow-[1px_1px_0px_#000000] animate-pulse">
+          <span className="text-[10px] font-black uppercase tracking-wider bg-amber-400 text-black px-2 py-0.5 rounded-full border border-black shadow-[1px_1px_0px_#000000] animate-pulse shrink-0">
             Your Turn
           </span>
         )}
