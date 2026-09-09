@@ -1,17 +1,30 @@
 "use client";
+
 import { useState, useMemo, useRef, useEffect } from "react";
 import { Chess, Square } from "chess.js";
 import { Chessboard } from "react-chessboard";
 import { authClient } from "@/lib/auth-client";
-import { Maximize2, Minimize2, History, X } from "lucide-react";
+import { Maximize2, Minimize2, History, Undo2 } from "lucide-react";
+
+import { customPieces } from "./chess/pieces";
+import {
+  buildSquareStyles,
+  darkSquareStyle,
+  lightSquareStyle,
+  dropSquareStyle,
+  getDarkNotationStyle,
+  getLightNotationStyle,
+} from "./chess/board-styles";
+import { PlayerCard } from "./chess/PlayerCard";
+import { MoveHistory } from "./chess/MoveHistory";
+import { GameResultCard } from "./chess/GameResultCard";
 
 export function CustomChessGame() {
   const game = useMemo(() => new Chess(), []);
   const [fen, setFen] = useState(game.fen());
   const [selectedSquare, setSelectedSquare] = useState<Square | null>(null);
 
-  // The logged-in user always plays White in local pass-and-play, matching
-  // the "You" input below the board. Adjust here if you later add color choice.
+  // The logged-in user always plays White in local pass-and-play
   const loggedInPlayerColor: "white" | "black" = "white";
 
   const [turn, setTurn] = useState<"White" | "Black">(
@@ -19,16 +32,33 @@ export function CustomChessGame() {
   );
 
   const { data: session } = authClient.useSession();
-
   const [playerOne, setPlayerOne] = useState(session?.user?.name || "Player 1");
   const [playerTwo, setPlayerTwo] = useState("Player 2");
 
-  // Guard so we only ever save once per finished game, even if state updates twice
+  // Guard so we only ever save once per finished game
   const savedRef = useRef(false);
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const isRestoredRef = useRef(false);
 
-  // Restore game state from localStorage on mount so tab switching/reloads never lose the game
+  // Responsive & fullscreen states
+  const gameWrapperRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+  const [showMobileHistory, setShowMobileHistory] = useState(false);
+  const [confirmReset, setConfirmReset] = useState(false);
+
+  // Track window resize for mobile optimizations
+  useEffect(() => {
+    function handleResize() {
+      setIsMobile(window.innerWidth < 768);
+    }
+    handleResize();
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
+
+  // Restore game state from localStorage on mount
   useEffect(() => {
     try {
       const saved = localStorage.getItem("chess_base_local_game");
@@ -62,7 +92,7 @@ export function CustomChessGame() {
     }
   }, [game, session?.user?.name]);
 
-  // Persist game state to localStorage whenever moves or player names change
+  // Persist game state to localStorage
   useEffect(() => {
     if (!isRestoredRef.current) return;
     try {
@@ -81,59 +111,14 @@ export function CustomChessGame() {
     }
   }, [fen, playerOne, playerTwo, game]);
 
-  // Automatically update Player 1 to signed in user's name when session loads
+  // Sync Player 1 when user logs in
   useEffect(() => {
     if (session?.user?.name) {
       setPlayerOne((prev) => (prev === "Player 1" || !prev ? session.user.name : prev));
     }
   }, [session?.user?.name]);
 
-  const [confirmReset, setConfirmReset] = useState(false);
-
-  function resetGame() {
-    game.reset();
-    setFen(game.fen());
-    setTurn("White");
-    setSelectedSquare(null);
-    savedRef.current = false;
-    setSaveStatus("idle");
-    setConfirmReset(false);
-    if (session?.user?.name) {
-      setPlayerOne(session.user.name);
-    }
-    try {
-      localStorage.removeItem("chess_base_local_game");
-    } catch { }
-  }
-
-  function handleNewGame() {
-    if (game.history().length === 0 || game.isGameOver()) {
-      resetGame();
-      return;
-    }
-    if (confirmReset) {
-      resetGame();
-    } else {
-      setConfirmReset(true);
-      setTimeout(() => setConfirmReset(false), 4000);
-    }
-  }
-
-  // ---- Fullscreen & Responsive Handling ----
-  const gameWrapperRef = useRef<HTMLDivElement>(null);
-  const [isFullscreen, setIsFullscreen] = useState(false);
-  const [isMobile, setIsMobile] = useState(false);
-  const [showMobileHistory, setShowMobileHistory] = useState(false);
-
-  useEffect(() => {
-    function handleResize() {
-      setIsMobile(window.innerWidth < 768);
-    }
-    handleResize();
-    window.addEventListener("resize", handleResize);
-    return () => window.removeEventListener("resize", handleResize);
-  }, []);
-
+  // Fullscreen listeners
   useEffect(() => {
     function onFullscreenChange() {
       const isNowFullscreen = !!(
@@ -146,7 +131,6 @@ export function CustomChessGame() {
         document.msFullscreenElement
       );
       setIsFullscreen(isNowFullscreen);
-      // Trigger a window resize so react-chessboard recalculates its dimensions smoothly
       setTimeout(() => {
         window.dispatchEvent(new Event("resize"));
       }, 100);
@@ -193,7 +177,7 @@ export function CustomChessGame() {
         }
       }
     } catch (err) {
-      console.warn("Native fullscreen toggle failed, using CSS fallback:", err);
+      console.warn("Fullscreen toggle fallback:", err);
       setIsFullscreen((prev) => !prev);
     } finally {
       setTimeout(() => {
@@ -202,46 +186,32 @@ export function CustomChessGame() {
     }
   }
 
-  // ---- Responsive sizing ----
-  const containerRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    function updateSize() {
-      if (containerRef.current) {
-        // intentionally left for future use
-      }
-    }
-    updateSize();
-    window.addEventListener("resize", updateSize);
-    return () => window.removeEventListener("resize", updateSize);
-  }, []);
-
-  // ---- Result detection ----
-  // Returns the result from the logged-in player's perspective, or null if the game isn't over.
+  // Result detection
   function getResult(): "win" | "loss" | "draw" | null {
     if (!game.isGameOver()) return null;
 
-    if (game.isDraw() || game.isStalemate() || game.isThreefoldRepetition() || game.isInsufficientMaterial()) {
+    if (
+      game.isDraw() ||
+      game.isStalemate() ||
+      game.isThreefoldRepetition() ||
+      game.isInsufficientMaterial()
+    ) {
       return "draw";
     }
 
     if (game.isCheckmate()) {
-      // game.turn() is the side that is checkmated (they have no legal move).
-      // So the winner is the OTHER color.
       const checkmatedColor = game.turn() === "w" ? "white" : "black";
       const winnerColor = checkmatedColor === "white" ? "black" : "white";
       return winnerColor === loggedInPlayerColor ? "win" : "loss";
     }
 
-    // Fallback for any other game-over condition chess.js might report
     return "draw";
   }
 
   async function saveMatchIfFinished() {
-    if (savedRef.current) return; // already saved this game
+    if (savedRef.current) return;
     const result = getResult();
-    if (!result) return; // game not over yet
-    if (!session) return; // guest — nothing to save against
+    if (!result || !session) return;
 
     savedRef.current = true;
     setSaveStatus("saving");
@@ -263,12 +233,53 @@ export function CustomChessGame() {
       setSaveStatus("saved");
     } catch (err) {
       console.error(err);
-      savedRef.current = false; // allow retry
+      savedRef.current = false;
       setSaveStatus("error");
     }
   }
 
-  // ---- Move handling ----
+  // Game action handlers
+  function resetGame() {
+    game.reset();
+    setFen(game.fen());
+    setTurn("White");
+    setSelectedSquare(null);
+    savedRef.current = false;
+    setSaveStatus("idle");
+    setConfirmReset(false);
+    if (session?.user?.name) {
+      setPlayerOne(session.user.name);
+    }
+    try {
+      localStorage.removeItem("chess_base_local_game");
+    } catch {}
+  }
+
+  function handleNewGame() {
+    if (game.history().length === 0 || game.isGameOver()) {
+      resetGame();
+      return;
+    }
+    if (confirmReset) {
+      resetGame();
+    } else {
+      setConfirmReset(true);
+      setTimeout(() => setConfirmReset(false), 4000);
+    }
+  }
+
+  function handleUndo() {
+    if (game.history().length === 0) return;
+    const undoneMove = game.undo();
+    if (undoneMove) {
+      setFen(game.fen());
+      setTurn(game.turn() === "w" ? "White" : "Black");
+      setSelectedSquare(null);
+      savedRef.current = false;
+      setSaveStatus("idle");
+    }
+  }
+
   function onPieceDrop({
     sourceSquare,
     targetSquare,
@@ -309,13 +320,10 @@ export function CustomChessGame() {
           saveMatchIfFinished();
           return;
         }
-      } catch {
-        // The clicked square is not a legal destination.
-      }
+      } catch {}
     }
 
     const piece = game.get(clickedSquare);
-
     if (piece && piece.color === game.turn()) {
       setSelectedSquare(clickedSquare);
     } else {
@@ -323,106 +331,11 @@ export function CustomChessGame() {
     }
   }
 
-  // ---- Custom piece art ----
-  const pieceStyle = {
-    width: "100%",
-    height: "100%",
-    objectFit: "contain" as const,
-    pointerEvents: "none" as const,
-    display: "block",
-    touchAction: "none" as const,
-    userSelect: "none" as const,
-    WebkitUserSelect: "none" as const,
-  };
-
-  const makePiece = (src: string, alt: string, size = "86%") =>
-    function ChessPiece() {
-      return (
-        <div
-          className="camp-piece-wrapper"
-          style={{
-            width: "100%",
-            height: "100%",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            boxSizing: "border-box",
-          }}
-        >
-          <img
-            src={src}
-            alt={alt}
-            draggable={false}
-            style={{
-              ...pieceStyle,
-              width: size,
-              height: size,
-              maxWidth: size,
-              maxHeight: size,
-            }}
-          />
-        </div>
-      );
-    };
-
-  const pieces = {
-    wP: makePiece("/wp_no_bg.png", "White pawn", "74%"),
-    wN: makePiece("/wh_no_bg.png", "White knight", "86%"),
-    wK: makePiece("/wk_no_bg.png", "White king", "86%"),
-    wB: makePiece("/wb_no_bg.png", "White bishop", "86%"),
-    wR: makePiece("/wr_no_bg.png", "White rook", "86%"),
-    wQ: makePiece("/wq_no_bg.png", "White queen", "86%"),
-    bP: makePiece("/bp_no_bg.png", "Black pawn", "86%"),
-    bN: makePiece("/bh_no_bg.png", "Black knight", "86%"),
-    bK: makePiece("/bk_no_bg.png", "Black king", "86%"),
-    bB: makePiece("/bb_no_bg.png", "Black bishop", "86%"),
-    bR: makePiece("/br_no_bg.png", "Black rook", "86%"),
-    bQ: makePiece("/bq_no_bg.png", "Black queen", "86%"),
-  };
-
-  function buildSquareStyles(): Record<string, React.CSSProperties> {
-    const styles: Record<string, React.CSSProperties> = {};
-
-    if (!selectedSquare) {
-      return styles;
-    }
-
-    styles[selectedSquare] = {
-      backgroundColor: "rgba(30, 144, 255, 0.4)",
-    };
-
-    const legalMoves = game.moves({
-      square: selectedSquare,
-      verbose: true,
-    });
-
-    for (const move of legalMoves) {
-      const isCapture = move.captured != null;
-
-      styles[move.to] = {
-        background: isCapture
-          ? "radial-gradient(circle, transparent 55%, rgba(220, 20, 60, 0.55) 55%)"
-          : "radial-gradient(circle, rgba(0, 0, 0, 0.3) 20%, transparent 20%)",
-        borderRadius: "50%",
-      };
-    }
-
-    return styles;
-  }
-
   const result = getResult();
   const isCheck = game.inCheck() && !result;
-
   const moves = game.history();
-  const movePairs: { num: number; white: string; black?: string }[] = [];
-  for (let i = 0; i < moves.length; i += 2) {
-    movePairs.push({
-      num: Math.floor(i / 2) + 1,
-      white: moves[i],
-      black: moves[i + 1],
-    });
-  }
 
+  // Unified board renderer
   const renderBoard = (style?: React.CSSProperties) => (
     <div
       ref={containerRef}
@@ -439,8 +352,8 @@ export function CustomChessGame() {
           position: fen,
           onPieceDrop,
           onSquareClick,
-          squareStyles: buildSquareStyles(),
-          pieces,
+          squareStyles: buildSquareStyles(selectedSquare, game),
+          pieces: customPieces,
           boardStyle: {
             borderRadius: "8px",
             boxShadow: "inset 0 0 8px rgba(0,0,0,0.6), 0 4px 18px rgba(0,0,0,0.45)",
@@ -448,47 +361,11 @@ export function CustomChessGame() {
             aspectRatio: "1 / 1",
             touchAction: "none",
           },
-          darkSquareStyle: {
-            backgroundColor: "#3a2b22",
-            backgroundImage:
-              "linear-gradient(135deg, rgba(78, 56, 45, 0.28) 0%, rgba(45, 31, 24, 0.4) 60%, rgba(26, 17, 12, 0.55) 100%)",
-            boxShadow: "inset 0 0 0 1px rgba(0, 0, 0, 0.25)",
-          },
-          lightSquareStyle: {
-            backgroundColor: "#dfd2bc",
-            backgroundImage:
-              "linear-gradient(135deg, rgba(255, 255, 255, 0.22) 0%, rgba(210, 194, 168, 0.25) 50%, rgba(184, 166, 138, 0.35) 100%)",
-            boxShadow: "inset 0 0 0 1px rgba(180, 158, 128, 0.3)",
-          },
-          dropSquareStyle: {
-            boxShadow: "inset 0 0 0 3px #d97724, inset 0 0 10px rgba(217, 119, 36, 0.4)",
-          },
-          darkSquareNotationStyle: {
-            position: "absolute",
-            top: 0,
-            left: 0,
-            width: "100%",
-            height: "100%",
-            pointerEvents: "none",
-            color: "rgba(223, 210, 188, 0.65)",
-            fontWeight: 700,
-            fontSize: isMobile ? "9px" : "11px",
-            fontFamily: "inherit",
-            userSelect: "none",
-          },
-          lightSquareNotationStyle: {
-            position: "absolute",
-            top: 0,
-            left: 0,
-            width: "100%",
-            height: "100%",
-            pointerEvents: "none",
-            color: "rgba(58, 43, 34, 0.75)",
-            fontWeight: 700,
-            fontSize: isMobile ? "9px" : "11px",
-            fontFamily: "inherit",
-            userSelect: "none",
-          },
+          darkSquareStyle,
+          lightSquareStyle,
+          dropSquareStyle,
+          darkSquareNotationStyle: getDarkNotationStyle(isMobile),
+          lightSquareNotationStyle: getLightNotationStyle(isMobile),
           animationDurationInMs: 200,
           showNotation: true,
         }}
@@ -505,19 +382,16 @@ export function CustomChessGame() {
         ref={gameWrapperRef}
         className="fixed inset-0 z-50 bg-[#070b14] p-2 flex flex-col justify-between items-center w-full h-[100svh] overflow-hidden select-none touch-none"
       >
-        {/* Top Header: Opponent Info & Quick Controls */}
+        {/* Top Header: Opponent Info & Controls */}
         <div className="w-full flex items-center justify-between gap-2 px-1 py-1">
-          <div className="flex items-center gap-2 min-w-0 flex-1">
-            <div className="w-7 h-7 rounded-lg bg-black border border-slate-700 flex items-center justify-center text-xs text-white font-black shadow-[1px_1px_0px_#000] shrink-0">
-              ♟
-            </div>
-            <input
-              id="opponent-mobile-fs"
-              type="text"
-              value={playerTwo}
-              onChange={(e) => setPlayerTwo(e.target.value)}
-              className="bg-black/60 border border-slate-700 rounded px-2 py-0.5 text-xs text-white font-bold focus:outline-none focus:border-amber-400 w-24 xs:w-32 truncate"
-              placeholder="Opponent"
+          <div className="min-w-0 flex-1">
+            <PlayerCard
+              color="black"
+              name={playerTwo}
+              onNameChange={setPlayerTwo}
+              isTurn={turn === "Black"}
+              isCompact
+              inputId="opponent-mobile-fs"
             />
           </div>
 
@@ -555,21 +429,28 @@ export function CustomChessGame() {
 
         {/* Bottom Footer: Player Info & Actions */}
         <div className="w-full flex items-center justify-between gap-2 px-1 py-1">
-          <div className="flex items-center gap-2 min-w-0 flex-1">
-            <div className="w-7 h-7 rounded-lg bg-amber-400 border border-black flex items-center justify-center text-xs text-black font-black shadow-[1px_1px_0px_#000] shrink-0">
-              ♙
-            </div>
-            <input
-              id="you-mobile-fs"
-              type="text"
-              value={playerOne}
-              onChange={(e) => setPlayerOne(e.target.value)}
-              className="bg-black/60 border border-slate-700 rounded px-2 py-0.5 text-xs text-white font-bold focus:outline-none focus:border-amber-400 w-24 xs:w-32 truncate"
-              placeholder="You"
+          <div className="min-w-0 flex-1">
+            <PlayerCard
+              color="white"
+              name={playerOne}
+              onNameChange={setPlayerOne}
+              isTurn={turn === "White"}
+              isCompact
+              inputId="you-mobile-fs"
             />
           </div>
 
           <div className="flex items-center gap-1.5 shrink-0">
+            <button
+              type="button"
+              onClick={handleUndo}
+              disabled={moves.length === 0}
+              className="camp-btn camp-btn-slate text-[11px] py-1 px-2 font-bold shadow-[1px_1px_0px_#000000] flex items-center gap-1 disabled:opacity-40"
+              title="Undo move"
+            >
+              <Undo2 className="w-3.5 h-3.5" />
+            </button>
+
             <button
               type="button"
               onClick={() => setShowMobileHistory((prev) => !prev)}
@@ -595,69 +476,21 @@ export function CustomChessGame() {
 
         {/* Mobile Move History Popover Drawer */}
         {showMobileHistory && (
-          <div className="absolute inset-x-2 bottom-14 z-50 rounded-2xl bg-slate-900/95 border-[2.5px] border-black p-3.5 shadow-[0_8px_30px_rgba(0,0,0,0.85)] backdrop-blur-md max-h-[50vh] flex flex-col animate-in fade-in slide-in-from-bottom duration-200">
-            <div className="flex items-center justify-between pb-2 mb-2 border-b border-slate-800">
-              <span className="text-xs font-black uppercase tracking-wider text-amber-300 flex items-center gap-1.5">
-                <History className="w-3.5 h-3.5" /> Match Moves ({moves.length})
-              </span>
-              <button
-                type="button"
-                onClick={() => setShowMobileHistory(false)}
-                className="p-1 text-slate-400 hover:text-white"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-            <div className="flex-1 overflow-y-auto pr-1 space-y-1 font-mono text-xs max-h-44">
-              {movePairs.length === 0 ? (
-                <div className="text-slate-500 text-xs italic py-4 text-center">
-                  No moves played yet
-                </div>
-              ) : (
-                movePairs.map((pair) => (
-                  <div
-                    key={pair.num}
-                    className="flex items-center justify-between px-2 py-1 rounded bg-black/40 text-slate-300"
-                  >
-                    <span className="text-slate-500 w-7 font-bold">{pair.num}.</span>
-                    <span className="text-amber-300 font-semibold flex-1">{pair.white}</span>
-                    <span className="text-slate-200 font-semibold flex-1 text-right">{pair.black || "—"}</span>
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
+          <MoveHistory
+            moves={moves}
+            isMobileDrawer
+            onCloseDrawer={() => setShowMobileHistory(false)}
+          />
         )}
 
         {/* Mobile Result Overlay Banner */}
-        {result && (
-          <div className="absolute inset-x-4 top-1/2 -translate-y-1/2 z-50 camp-card-canvas p-4 text-sm font-black text-center shadow-[6px_6px_0px_#000000] border-[2.5px] border-black animate-in zoom-in-95 duration-200">
-            <div className="text-lg font-black mb-1">
-              {result === "draw" ? "Game drawn." : result === "win" ? "You won! 🎉" : "You lost."}
-            </div>
-            {!session && (
-              <p className="text-xs font-medium text-gray-600 mb-2">
-                Sign in to save match results to your history.
-              </p>
-            )}
-            {session && saveStatus === "saving" && (
-              <p className="text-xs font-medium text-gray-600 mb-2">Saving match…</p>
-            )}
-            {session && saveStatus === "saved" && (
-              <p className="text-xs font-medium text-emerald-700 mb-2">Saved to your match history.</p>
-            )}
-            {session && saveStatus === "error" && (
-              <p className="text-xs font-medium text-red-600 mb-2">Couldn't save match — try again.</p>
-            )}
-            <button
-              type="button"
-              onClick={resetGame}
-              className="camp-btn camp-btn-ember text-xs py-2 px-5 font-black shadow-[2px_2px_0px_#000000]"
-            >
-              Play Again
-            </button>
-          </div>
-        )}
+        <GameResultCard
+          result={result}
+          session={session}
+          saveStatus={saveStatus}
+          onPlayAgain={resetGame}
+          isOverlay
+        />
       </div>
     );
   }
@@ -708,124 +541,58 @@ export function CustomChessGame() {
           </div>
 
           {/* Black (Opponent) Card */}
-          <div className="w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl bg-slate-900/90 border-[2px] border-black shadow-[3px_3px_0px_#000000]">
-            <div className="flex items-center gap-2.5">
-              <div className="w-7 h-7 rounded-lg bg-black border border-slate-700 flex items-center justify-center text-xs text-white font-black shadow-[1px_1px_0px_#000]">
-                ♟
-              </div>
-              <div className="flex items-center gap-1.5">
-                <label htmlFor="opponent-fs" className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
-                  Black:
-                </label>
-                <input
-                  id="opponent-fs"
-                  type="text"
-                  value={playerTwo}
-                  onChange={(e) => setPlayerTwo(e.target.value)}
-                  className="bg-black/60 border border-slate-700 rounded-md px-2 py-0.5 text-xs text-white font-bold focus:outline-none focus:border-amber-400 transition-colors w-28 sm:w-36"
-                />
-              </div>
-            </div>
-            {turn === "Black" && (
-              <span className="text-[10px] font-black uppercase tracking-wider bg-slate-700 text-amber-300 px-2 py-0.5 rounded-full border border-black shadow-[1px_1px_0px_#000000] animate-pulse">
-                To Move
-              </span>
-            )}
-          </div>
+          <PlayerCard
+            color="black"
+            name={playerTwo}
+            onNameChange={setPlayerTwo}
+            isTurn={turn === "Black"}
+            inputId="opponent-fs"
+          />
 
           {/* Tactical Move History Log */}
-          <div className="w-full rounded-xl bg-slate-900/80 border-[2px] border-black p-3 shadow-[3px_3px_0px_#000000] flex flex-col flex-1 min-h-[140px] max-h-[260px]">
-            <div className="flex items-center justify-between pb-2 mb-2 border-b border-slate-800 text-[11px] font-black uppercase tracking-wider text-slate-400">
-              <span>Match History</span>
-              <span className="text-amber-400 font-mono text-[10px]">{moves.length} moves</span>
-            </div>
-            <div className="flex-1 overflow-y-auto pr-1 space-y-1 font-mono text-xs">
-              {movePairs.length === 0 ? (
-                <div className="text-slate-500 text-xs italic py-6 text-center">
-                  Moves will appear here as you play
-                </div>
-              ) : (
-                movePairs.map((pair) => (
-                  <div
-                    key={pair.num}
-                    className="flex items-center justify-between px-2.5 py-1 rounded bg-black/40 text-slate-300 hover:bg-black/60 transition-colors"
-                  >
-                    <span className="text-slate-500 w-8 font-bold">{pair.num}.</span>
-                    <span className="text-amber-300 font-semibold flex-1">{pair.white}</span>
-                    <span className="text-slate-200 font-semibold flex-1 text-right">{pair.black || "—"}</span>
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
+          <MoveHistory moves={moves} />
 
           {/* White (You) Card */}
-          <div className="w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl bg-slate-900/90 border-[2px] border-black shadow-[3px_3px_0px_#000000]">
-            <div className="flex items-center gap-2.5">
-              <div className="w-7 h-7 rounded-lg bg-amber-400 border border-black flex items-center justify-center text-xs text-black font-black shadow-[1px_1px_0px_#000]">
-                ♙
-              </div>
-              <div className="flex items-center gap-1.5">
-                <label htmlFor="you-fs" className="text-[11px] font-bold text-amber-400/90 uppercase tracking-wider">
-                  White (You):
-                </label>
-                <input
-                  id="you-fs"
-                  type="text"
-                  value={playerOne}
-                  onChange={(e) => setPlayerOne(e.target.value)}
-                  className="bg-black/60 border border-slate-700 rounded-md px-2 py-0.5 text-xs text-white font-bold focus:outline-none focus:border-amber-400 transition-colors w-28 sm:w-36"
-                />
-              </div>
-            </div>
-            {turn === "White" && (
-              <span className="text-[10px] font-black uppercase tracking-wider bg-amber-400 text-black px-2 py-0.5 rounded-full border border-black shadow-[1px_1px_0px_#000000] animate-pulse">
-                Your Turn
-              </span>
-            )}
+          <PlayerCard
+            color="white"
+            name={playerOne}
+            onNameChange={setPlayerOne}
+            isTurn={turn === "White"}
+            inputId="you-fs"
+          />
+
+          {/* Actions: Undo & Reset Game */}
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={handleUndo}
+              disabled={moves.length === 0}
+              className="camp-btn camp-btn-slate text-xs py-2 px-3.5 font-black shadow-[2px_2px_0px_#000000] flex items-center gap-1.5 disabled:opacity-40"
+              title="Undo last move"
+            >
+              <Undo2 className="w-3.5 h-3.5" />
+              <span>Undo</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={handleNewGame}
+              className={`camp-btn flex-1 text-xs py-2 px-3 font-black shadow-[2px_2px_0px_#000000] flex items-center justify-center gap-1.5 hover:scale-[1.02] active:scale-95 transition-all ${
+                confirmReset ? "camp-btn-red bg-rose-500 text-white animate-pulse" : "camp-btn-yellow"
+              }`}
+            >
+              <span>↺</span>
+              <span>{confirmReset ? "Confirm Reset Game?" : "New Game"}</span>
+            </button>
           </div>
 
-          {/* Bottom Action: Reset Game */}
-          <button
-            type="button"
-            onClick={handleNewGame}
-            className={`camp-btn w-full text-xs py-2 px-3 font-black shadow-[2px_2px_0px_#000000] flex items-center justify-center gap-1.5 hover:scale-[1.02] active:scale-95 transition-all ${
-              confirmReset ? "camp-btn-red bg-rose-500 text-white animate-pulse" : "camp-btn-yellow"
-            }`}
-          >
-            <span>↺</span>
-            <span>{confirmReset ? "Confirm Reset Game?" : "New Game"}</span>
-          </button>
-
           {/* Result card if finished */}
-          {result && (
-            <div className="camp-card-canvas w-full px-4 py-3 text-sm font-black text-center shadow-[4px_4px_0px_#000000] border-[2.5px] border-black">
-              <div className="text-base font-black">
-                {result === "draw" ? "Game drawn." : result === "win" ? "You won! 🎉" : "You lost."}
-              </div>
-              {!session && (
-                <p className="text-xs font-medium text-gray-600 mt-1">
-                  Sign in to save match results to your history.
-                </p>
-              )}
-              {session && saveStatus === "saving" && (
-                <p className="text-xs font-medium text-gray-600 mt-1">Saving match…</p>
-              )}
-              {session && saveStatus === "saved" && (
-                <p className="text-xs font-medium text-emerald-700 mt-1">Saved to your match history.</p>
-              )}
-              {session && saveStatus === "error" && (
-                <p className="text-xs font-medium text-red-600 mt-1">Couldn't save match — try again.</p>
-              )}
-              <button
-                type="button"
-                onClick={resetGame}
-                className="mt-2 camp-btn camp-btn-ember text-xs py-1 px-4 font-black shadow-[2px_2px_0px_#000000]"
-              >
-                Play Again
-              </button>
-            </div>
-          )}
+          <GameResultCard
+            result={result}
+            session={session}
+            saveStatus={saveStatus}
+            onPlayAgain={resetGame}
+          />
         </div>
       </div>
     );
@@ -859,6 +626,17 @@ export function CustomChessGame() {
         <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
           <button
             type="button"
+            onClick={handleUndo}
+            disabled={moves.length === 0}
+            title="Undo move"
+            className="camp-btn camp-btn-slate text-xs py-1 px-2 sm:py-1.5 sm:px-2.5 font-black shadow-[2px_2px_0px_#000000] flex items-center gap-1 hover:scale-105 active:scale-95 transition-all disabled:opacity-40"
+          >
+            <Undo2 className="w-3.5 h-3.5" />
+            <span className="hidden xs:inline">Undo</span>
+          </button>
+
+          <button
+            type="button"
             onClick={toggleFullscreen}
             title="Play Fullscreen"
             className="camp-btn camp-btn-white text-xs py-1 px-2 sm:py-1.5 sm:px-2.5 font-black shadow-[2px_2px_0px_#000000] flex items-center gap-1 sm:gap-1.5 hover:scale-105 active:scale-95 transition-all text-black"
@@ -876,95 +654,39 @@ export function CustomChessGame() {
             }`}
           >
             <span>↺</span>
-            <span>{confirmReset ? "Reset?" : "New Game"}</span>
+            <span>{confirmReset ? "Reset?" : "New"}</span>
           </button>
         </div>
       </div>
 
-      {result && (
-        <div className="camp-card-canvas w-full px-4 py-3 text-sm font-black text-center shadow-[4px_4px_0px_#000000] border-[2.5px] border-black">
-          <div className="text-base sm:text-lg">
-            {result === "draw" ? "Game drawn." : result === "win" ? "You won! 🎉" : "You lost."}
-          </div>
-          {!session && (
-            <p className="text-xs font-medium text-gray-600 mt-1">
-              Sign in to save match results to your history.
-            </p>
-          )}
-          {session && saveStatus === "saving" && (
-            <p className="text-xs font-medium text-gray-600 mt-1">Saving match…</p>
-          )}
-          {session && saveStatus === "saved" && (
-            <p className="text-xs font-medium text-emerald-700 mt-1">Saved to your match history.</p>
-          )}
-          {session && saveStatus === "error" && (
-            <p className="text-xs font-medium text-red-600 mt-1">Couldn't save match — try again.</p>
-          )}
-
-          <button
-            type="button"
-            onClick={resetGame}
-            className="mt-3 camp-btn camp-btn-ember text-xs py-1.5 px-4 font-black shadow-[2px_2px_0px_#000000]"
-          >
-            Play Again
-          </button>
-        </div>
-      )}
+      {/* Result notification */}
+      <GameResultCard
+        result={result}
+        session={session}
+        saveStatus={saveStatus}
+        onPlayAgain={resetGame}
+      />
 
       {/* Opponent (Black) Card */}
-      <div className="w-full flex items-center justify-between px-3 py-2 rounded-xl bg-slate-900/90 border-[2px] border-black shadow-[3px_3px_0px_#000000]">
-        <div className="flex items-center gap-2 min-w-0 flex-1">
-          <div className="w-6 h-6 rounded-lg bg-black border border-slate-700 flex items-center justify-center text-xs text-white font-black shadow-[1px_1px_0px_#000] shrink-0">
-            ♟
-          </div>
-          <div className="flex items-center gap-1.5 min-w-0 flex-1">
-            <label htmlFor="opponent" className="text-[11px] font-bold text-slate-400 uppercase tracking-wider shrink-0">
-              Black:
-            </label>
-            <input
-              id="opponent"
-              type="text"
-              value={playerTwo}
-              onChange={(e) => setPlayerTwo(e.target.value)}
-              className="bg-black/60 border border-slate-700 rounded-md px-2 py-0.5 text-xs text-white font-bold focus:outline-none focus:border-amber-400 transition-colors w-24 xs:w-32 sm:w-44"
-            />
-          </div>
-        </div>
-        {turn === "Black" && (
-          <span className="text-[10px] font-black uppercase tracking-wider bg-slate-700 text-amber-300 px-2 py-0.5 rounded-full border border-black shadow-[1px_1px_0px_#000000] animate-pulse shrink-0">
-            To Move
-          </span>
-        )}
-      </div>
+      <PlayerCard
+        color="black"
+        name={playerTwo}
+        onNameChange={setPlayerTwo}
+        isTurn={turn === "Black"}
+        inputId="opponent"
+      />
 
       {/* Board Tray */}
       {renderBoard({ maxWidth: "min(98vw, 520px)" })}
 
       {/* Player (White / You) Card */}
-      <div className="w-full flex items-center justify-between px-3 py-2 rounded-xl bg-slate-900/90 border-[2px] border-black shadow-[3px_3px_0px_#000000]">
-        <div className="flex items-center gap-2 min-w-0 flex-1">
-          <div className="w-6 h-6 rounded-lg bg-amber-400 border border-black flex items-center justify-center text-xs text-black font-black shadow-[1px_1px_0px_#000] shrink-0">
-            ♙
-          </div>
-          <div className="flex items-center gap-1.5 min-w-0 flex-1">
-            <label htmlFor="you" className="text-[11px] font-bold text-amber-400/90 uppercase tracking-wider shrink-0">
-              White (You):
-            </label>
-            <input
-              id="you"
-              type="text"
-              value={playerOne}
-              onChange={(e) => setPlayerOne(e.target.value)}
-              className="bg-black/60 border border-slate-700 rounded-md px-2 py-0.5 text-xs text-white font-bold focus:outline-none focus:border-amber-400 transition-colors w-24 xs:w-32 sm:w-44"
-            />
-          </div>
-        </div>
-        {turn === "White" && (
-          <span className="text-[10px] font-black uppercase tracking-wider bg-amber-400 text-black px-2 py-0.5 rounded-full border border-black shadow-[1px_1px_0px_#000000] animate-pulse shrink-0">
-            Your Turn
-          </span>
-        )}
-      </div>
+      <PlayerCard
+        color="white"
+        name={playerOne}
+        onNameChange={setPlayerOne}
+        isTurn={turn === "White"}
+        inputId="you"
+      />
     </div>
   );
 }
