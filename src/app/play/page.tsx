@@ -20,13 +20,7 @@ function PlayContent() {
     }
   }, [isPending, session]);
 
-  if (isPending) {
-    return (
-      <div className="p-12 text-center text-amber-300 text-sm font-black tracking-wider uppercase">
-        Loading Chess Base...
-      </div>
-    );
-  }
+
 
   // Show "Coming Soon" screen if mode is bot or friend
   if (mode === "bot" || mode === "friend") {
