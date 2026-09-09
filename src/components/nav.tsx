@@ -37,6 +37,9 @@ export function Nav() {
 
       {/* Nav Actions */}
       <div className="flex items-center gap-3">
+        <Link href={"/history"}>
+        History
+        </Link>
         <Link
           href="/modes"
           className="text-xs font-bold text-amber-300 hover:text-white transition-colors px-2 py-1 hidden sm:block uppercase tracking-wider"
