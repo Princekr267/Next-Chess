@@ -283,3 +283,13 @@
   background: #475569;
   color: #ffffff;
 }
+
+.camp-badge-red {
+  background: #ef4444;
+  color: #ffffff;
+}
+
+.camp-btn-red {
+  background: linear-gradient(180deg, #f87171 0%, #ef4444 100%);
+  color: #ffffff;
+}
