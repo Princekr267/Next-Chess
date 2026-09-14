@@ -24,9 +24,6 @@ export function CustomChessGame() {
   const [fen, setFen] = useState(game.fen());
   const [selectedSquare, setSelectedSquare] = useState<Square | null>(null);
 
-  // The logged-in user always plays White in local pass-and-play
-  const loggedInPlayerColor: "white" | "black" = "white";
-
   const [turn, setTurn] = useState<"White" | "Black">(
     game.turn() === "w" ? "White" : "Black"
   );
@@ -35,9 +32,15 @@ export function CustomChessGame() {
   const [playerOne, setPlayerOne] = useState(session?.user?.name || "Player 1");
   const [playerTwo, setPlayerTwo] = useState("Player 2");
 
+  // NEW: The color the logged-in player is playing.
+  // Locked once the first move is made to avoid mid-game confusion.
+  const [loggedInPlayerColor, setLoggedInPlayerColor] = useState<"white" | "black">("white");
+  const gameHasStarted = game.history().length > 0;
+
   // Guard so we only ever save once per finished game
   const savedRef = useRef(false);
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
+  const [ratingChange, setRatingChange] = useState<{ before: number; after: number } | null>(null);
   const isRestoredRef = useRef(false);
 
   // Responsive & fullscreen states
@@ -61,7 +64,9 @@ export function CustomChessGame() {
   // Restore game state from localStorage on mount
   useEffect(() => {
     try {
-      const saved = localStorage.getItem("next_chess_local_game") || localStorage.getItem("chess_base_local_game");
+      const saved =
+        localStorage.getItem("next_chess_local_game") ||
+        localStorage.getItem("chess_base_local_game");
       if (saved) {
         const data = JSON.parse(saved);
         if (data.pgn) {
@@ -81,6 +86,7 @@ export function CustomChessGame() {
           setPlayerOne(session.user.name);
         }
         if (data.playerTwo) setPlayerTwo(data.playerTwo);
+        if (data.loggedInPlayerColor) setLoggedInPlayerColor(data.loggedInPlayerColor);
         if (typeof data.savedRef === "boolean") savedRef.current = data.savedRef;
       } else if (session?.user?.name) {
         setPlayerOne(session.user.name);
@@ -103,15 +109,16 @@ export function CustomChessGame() {
           pgn: game.pgn(),
           playerOne,
           playerTwo,
+          loggedInPlayerColor,
           savedRef: savedRef.current,
         })
       );
     } catch (err) {
       console.error("Failed to persist game state:", err);
     }
-  }, [fen, playerOne, playerTwo, game]);
+  }, [fen, playerOne, playerTwo, loggedInPlayerColor, game]);
 
-  // Sync Player 1 when user logs in
+  // Sync Player 1 name when user logs in
   useEffect(() => {
     if (session?.user?.name) {
       setPlayerOne((prev) => (prev === "Player 1" || !prev ? session.user.name : prev));
@@ -131,9 +138,7 @@ export function CustomChessGame() {
         document.msFullscreenElement
       );
       setIsFullscreen(isNowFullscreen);
-      setTimeout(() => {
-        window.dispatchEvent(new Event("resize"));
-      }, 100);
+      setTimeout(() => window.dispatchEvent(new Event("resize")), 100);
     }
 
     document.addEventListener("fullscreenchange", onFullscreenChange);
@@ -165,13 +170,9 @@ export function CustomChessGame() {
         }
       } else {
         if (document.fullscreenElement || (document as any).webkitFullscreenElement) {
-          if (document.exitFullscreen) {
-            await document.exitFullscreen();
-          } else if ((document as any).webkitExitFullscreen) {
-            await (document as any).webkitExitFullscreen();
-          } else if ((document as any).msExitFullscreen) {
-            await (document as any).msExitFullscreen();
-          }
+          if (document.exitFullscreen) await document.exitFullscreen();
+          else if ((document as any).webkitExitFullscreen) await (document as any).webkitExitFullscreen();
+          else if ((document as any).msExitFullscreen) await (document as any).msExitFullscreen();
         } else {
           setIsFullscreen(false);
         }
@@ -180,13 +181,12 @@ export function CustomChessGame() {
       console.warn("Fullscreen toggle fallback:", err);
       setIsFullscreen((prev) => !prev);
     } finally {
-      setTimeout(() => {
-        window.dispatchEvent(new Event("resize"));
-      }, 100);
+      setTimeout(() => window.dispatchEvent(new Event("resize")), 100);
     }
   }
 
-  // Result detection
+  // ---- Result detection ----
+  // Returns result from the logged-in player's perspective, or null if game isn't over.
   function getResult(): "win" | "loss" | "draw" | null {
     if (!game.isGameOver()) return null;
 
@@ -200,6 +200,7 @@ export function CustomChessGame() {
     }
 
     if (game.isCheckmate()) {
+      // game.turn() is the side that is checkmated (no legal moves left).
       const checkmatedColor = game.turn() === "w" ? "white" : "black";
       const winnerColor = checkmatedColor === "white" ? "black" : "white";
       return winnerColor === loggedInPlayerColor ? "win" : "loss";
@@ -209,9 +210,10 @@ export function CustomChessGame() {
   }
 
   async function saveMatchIfFinished() {
-    if (savedRef.current) return;
+    if (savedRef.current) return; // already saved this game
     const result = getResult();
-    if (!result || !session) return;
+    if (!result) return; // game not over yet
+    if (!session) return; // guest — nothing to save
 
     savedRef.current = true;
     setSaveStatus("saving");
@@ -230,15 +232,21 @@ export function CustomChessGame() {
       });
 
       if (!res.ok) throw new Error("Failed to save match");
+
+      const data = await res.json();
+      // NEW: capture rating change if backend returned it
+      if (data.match?.ratingBefore != null && data.match?.ratingAfter != null) {
+        setRatingChange({ before: data.match.ratingBefore, after: data.match.ratingAfter });
+      }
       setSaveStatus("saved");
     } catch (err) {
       console.error(err);
-      savedRef.current = false;
+      savedRef.current = false; // allow retry
       setSaveStatus("error");
     }
   }
 
-  // Game action handlers
+  // ---- Game action handlers ----
   function resetGame() {
     game.reset();
     setFen(game.fen());
@@ -246,10 +254,10 @@ export function CustomChessGame() {
     setSelectedSquare(null);
     savedRef.current = false;
     setSaveStatus("idle");
+    setRatingChange(null);
     setConfirmReset(false);
-    if (session?.user?.name) {
-      setPlayerOne(session.user.name);
-    }
+    setLoggedInPlayerColor("white"); // reset color choice for next game
+    if (session?.user?.name) setPlayerOne(session.user.name);
     try {
       localStorage.removeItem("next_chess_local_game");
       localStorage.removeItem("chess_base_local_game");
@@ -281,6 +289,7 @@ export function CustomChessGame() {
     }
   }
 
+  // ---- Move handling ----
   function onPieceDrop({
     sourceSquare,
     targetSquare,
@@ -308,12 +317,7 @@ export function CustomChessGame() {
 
     if (selectedSquare) {
       try {
-        const move = game.move({
-          from: selectedSquare,
-          to: clickedSquare,
-          promotion: "q",
-        });
-
+        const move = game.move({ from: selectedSquare, to: clickedSquare, promotion: "q" });
         if (move) {
           setFen(game.fen());
           setTurn(game.turn() === "w" ? "White" : "Black");
@@ -321,7 +325,9 @@ export function CustomChessGame() {
           saveMatchIfFinished();
           return;
         }
-      } catch {}
+      } catch {
+        // Not a legal destination — fall through to piece selection below
+      }
     }
 
     const piece = game.get(clickedSquare);
@@ -336,21 +342,18 @@ export function CustomChessGame() {
   const isCheck = game.inCheck() && !result;
   const moves = game.history();
 
-  // Unified board renderer
+  // ---- Shared board renderer ----
   const renderBoard = (style?: React.CSSProperties) => (
     <div
       ref={containerRef}
       className="camp-board-tray w-full shrink-0 touch-none select-none"
-      style={{
-        aspectRatio: "1 / 1",
-        margin: "0 auto",
-        ...style,
-      }}
+      style={{ aspectRatio: "1 / 1", margin: "0 auto", ...style }}
     >
       <Chessboard
         options={{
           id: "custom-board",
           position: fen,
+          boardOrientation: loggedInPlayerColor, // NEW: flip board based on chosen color
           onPieceDrop,
           onSquareClick,
           squareStyles: buildSquareStyles(selectedSquare, game),
@@ -374,8 +377,44 @@ export function CustomChessGame() {
     </div>
   );
 
+  // NEW: Color picker shown above the board (only before game starts)
+  const renderColorPicker = () => (
+    <div className="flex items-center gap-2 flex-wrap justify-center">
+      <span className="text-[11px] font-black uppercase tracking-wider text-slate-400">
+        You play as:
+      </span>
+      <button
+        type="button"
+        disabled={gameHasStarted}
+        onClick={() => setLoggedInPlayerColor("white")}
+        className={`camp-btn text-xs py-1 px-3 font-black shadow-[2px_2px_0px_#000000] transition-all ${
+          loggedInPlayerColor === "white"
+            ? "camp-btn-yellow"
+            : "camp-btn-white text-gray-700 opacity-70"
+        } disabled:cursor-not-allowed`}
+      >
+        ♙ White
+      </button>
+      <button
+        type="button"
+        disabled={gameHasStarted}
+        onClick={() => setLoggedInPlayerColor("black")}
+        className={`camp-btn text-xs py-1 px-3 font-black shadow-[2px_2px_0px_#000000] transition-all ${
+          loggedInPlayerColor === "black"
+            ? "camp-btn-slate"
+            : "camp-btn-white text-gray-700 opacity-70"
+        } disabled:cursor-not-allowed`}
+      >
+        ♟ Black
+      </button>
+      {gameHasStarted && (
+        <span className="text-[10px] text-slate-500 italic">(locked after first move)</span>
+      )}
+    </div>
+  );
+
   // =========================================================================
-  // 1. MOBILE FULLSCREEN VIEW (Edge-to-edge board, compact bars, no scroll)
+  // 1. MOBILE FULLSCREEN VIEW
   // =========================================================================
   if (isFullscreen && isMobile) {
     return (
@@ -383,7 +422,7 @@ export function CustomChessGame() {
         ref={gameWrapperRef}
         className="fixed inset-0 z-50 bg-[#070b14] p-2 flex flex-col justify-between items-center w-full h-[100svh] overflow-hidden select-none touch-none"
       >
-        {/* Top Header: Opponent Info & Controls */}
+        {/* Top: Opponent Info & Controls */}
         <div className="w-full flex items-center justify-between gap-2 px-1 py-1">
           <div className="min-w-0 flex-1">
             <PlayerCard
@@ -420,15 +459,12 @@ export function CustomChessGame() {
           </div>
         </div>
 
-        {/* Massive Chessboard Centered on Mobile */}
+        {/* Board */}
         <div className="flex-1 flex items-center justify-center w-full my-auto overflow-hidden">
-          {renderBoard({
-            width: "min(98vw, calc(100svh - 150px), 520px)",
-            maxWidth: "100%",
-          })}
+          {renderBoard({ width: "min(98vw, calc(100svh - 150px), 520px)", maxWidth: "100%" })}
         </div>
 
-        {/* Bottom Footer: Player Info & Actions */}
+        {/* Bottom: Player Info & Actions */}
         <div className="w-full flex items-center justify-between gap-2 px-1 py-1">
           <div className="min-w-0 flex-1">
             <PlayerCard
@@ -475,7 +511,6 @@ export function CustomChessGame() {
           </div>
         </div>
 
-        {/* Mobile Move History Popover Drawer */}
         {showMobileHistory && (
           <MoveHistory
             moves={moves}
@@ -484,12 +519,12 @@ export function CustomChessGame() {
           />
         )}
 
-        {/* Mobile Result Overlay Banner */}
         <GameResultCard
           result={result}
           session={session}
           saveStatus={saveStatus}
           onPlayAgain={resetGame}
+          ratingChange={ratingChange}
           isOverlay
         />
       </div>
@@ -497,7 +532,7 @@ export function CustomChessGame() {
   }
 
   // =========================================================================
-  // 2. DESKTOP FULLSCREEN ARENA (Maximized board + Dedicated side dashboard)
+  // 2. DESKTOP FULLSCREEN ARENA
   // =========================================================================
   if (isFullscreen && !isMobile) {
     return (
@@ -505,15 +540,12 @@ export function CustomChessGame() {
         ref={gameWrapperRef}
         className="fixed inset-0 z-50 bg-[#070b14] p-3 sm:p-5 md:p-6 flex flex-row items-center justify-center gap-6 lg:gap-8 overflow-y-auto w-full min-h-screen"
       >
-        {/* Massive Chessboard Centerpiece */}
-        {renderBoard({
-          width: "min(92vh, calc(100vw - 380px), 860px)",
-          maxWidth: "100%",
-        })}
+        {/* Massive Board */}
+        {renderBoard({ width: "min(92vh, calc(100vw - 380px), 860px)", maxWidth: "100%" })}
 
-        {/* Side Control & Information Dashboard */}
+        {/* Side Dashboard */}
         <div className="w-80 lg:w-96 flex flex-col gap-3 shrink-0 max-h-[92vh] justify-between">
-          {/* Top Status & Exit Bar */}
+          {/* Status & Exit */}
           <div className="flex items-center justify-between gap-2 px-1">
             <div className="flex items-center gap-2">
               <span
@@ -529,7 +561,6 @@ export function CustomChessGame() {
                 </span>
               )}
             </div>
-
             <button
               type="button"
               onClick={toggleFullscreen}
@@ -541,7 +572,11 @@ export function CustomChessGame() {
             </button>
           </div>
 
-          {/* Black (Opponent) Card */}
+          {/* Color Picker (only before game starts) */}
+          {!gameHasStarted && (
+            <div className="px-1">{renderColorPicker()}</div>
+          )}
+
           <PlayerCard
             color="black"
             name={playerTwo}
@@ -550,10 +585,8 @@ export function CustomChessGame() {
             inputId="opponent-fs"
           />
 
-          {/* Tactical Move History Log */}
           <MoveHistory moves={moves} />
 
-          {/* White (You) Card */}
           <PlayerCard
             color="white"
             name={playerOne}
@@ -562,7 +595,7 @@ export function CustomChessGame() {
             inputId="you-fs"
           />
 
-          {/* Actions: Undo & Reset Game */}
+          {/* Actions */}
           <div className="flex items-center gap-2">
             <button
               type="button"
@@ -587,12 +620,12 @@ export function CustomChessGame() {
             </button>
           </div>
 
-          {/* Result card if finished */}
           <GameResultCard
             result={result}
             session={session}
             saveStatus={saveStatus}
             onPlayAgain={resetGame}
+            ratingChange={ratingChange}
           />
         </div>
       </div>
@@ -660,12 +693,16 @@ export function CustomChessGame() {
         </div>
       </div>
 
-      {/* Result notification */}
+      {/* NEW: Color picker (before first move only) */}
+      {!gameHasStarted && renderColorPicker()}
+
+      {/* Result notification (with rating change) */}
       <GameResultCard
         result={result}
         session={session}
         saveStatus={saveStatus}
         onPlayAgain={resetGame}
+        ratingChange={ratingChange}
       />
 
       {/* Opponent (Black) Card */}
@@ -677,7 +714,7 @@ export function CustomChessGame() {
         inputId="opponent"
       />
 
-      {/* Board Tray */}
+      {/* Board */}
       {renderBoard({ maxWidth: "min(98vw, 520px)" })}
 
       {/* Player (White / You) Card */}

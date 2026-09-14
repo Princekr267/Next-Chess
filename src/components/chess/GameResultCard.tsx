@@ -5,6 +5,7 @@ interface GameResultCardProps {
   session: any;
   saveStatus: "idle" | "saving" | "saved" | "error";
   onPlayAgain: () => void;
+  ratingChange?: { before: number; after: number } | null;
   className?: string;
   isOverlay?: boolean;
 }
@@ -14,6 +15,7 @@ export function GameResultCard({
   session,
   saveStatus,
   onPlayAgain,
+  ratingChange = null,
   className = "",
   isOverlay = false,
 }: GameResultCardProps) {
@@ -42,7 +44,13 @@ export function GameResultCard({
         )}
         {session && saveStatus === "saved" && (
           <p className="text-xs font-medium text-emerald-700 mb-2">
-            Saved to your match history.
+            Saved.{ratingChange && (
+              <> Rating: {ratingChange.before} →{" "}
+                <span className={ratingChange.after >= ratingChange.before ? "text-emerald-700" : "text-red-600"}>
+                  {ratingChange.after} ({ratingChange.after >= ratingChange.before ? "+" : ""}{ratingChange.after - ratingChange.before})
+                </span>
+              </>
+            )}
           </p>
         )}
         {session && saveStatus === "error" && (
@@ -76,7 +84,13 @@ export function GameResultCard({
       )}
       {session && saveStatus === "saved" && (
         <p className="text-xs font-medium text-emerald-700 mt-1">
-          Saved to your match history.
+          Saved.{ratingChange && (
+            <> Rating: {ratingChange.before} →{" "}
+              <span className={ratingChange.after >= ratingChange.before ? "text-emerald-700" : "text-red-600"}>
+                {ratingChange.after} ({ratingChange.after >= ratingChange.before ? "+" : ""}{ratingChange.after - ratingChange.before})
+              </span>
+            </>
+          )}
         </p>
       )}
       {session && saveStatus === "error" && (

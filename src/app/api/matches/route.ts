@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { db } from "@/db";
-import { matches } from "@/db/schema";
+import { matches, user } from "@/db/schema";
 import { eq, desc } from "drizzle-orm";
+import { calculateNewRating, resultToScore, PHANTOM_OPPONENT_RATING } from "@/lib/elo";
 
-// POST /api/matches  -> save a finished match for the logged-in user
+// POST /api/matches -> save a finished match for the logged-in user.
+// If the match was a local game, also update their Elo rating.
 export async function POST(req: NextRequest) {
   const session = await auth.api.getSession({ headers: req.headers });
 
@@ -15,7 +17,6 @@ export async function POST(req: NextRequest) {
   const body = await req.json();
   const { opponentType, botDifficulty, playerColor, player2Name, result } = body;
 
-  // Basic validation — reject anything that doesn't match what the schema expects
   if (!["local", "bot"].includes(opponentType)) {
     return NextResponse.json({ error: "Invalid opponentType" }, { status: 400 });
   }
@@ -24,6 +25,24 @@ export async function POST(req: NextRequest) {
   }
   if (!["win", "loss", "draw"].includes(result)) {
     return NextResponse.json({ error: "Invalid result" }, { status: 400 });
+  }
+
+  // Only local games are rated for now — bot games have no meaningful
+  // second rating to compare against, so we leave ratingBefore/After null.
+  let ratingBefore: number | null = null;
+  let ratingAfter: number | null = null;
+
+  if (opponentType === "local") {
+    const [currentUser] = await db
+      .select({ rating: user.rating })
+      .from(user)
+      .where(eq(user.id, session.user.id));
+
+    ratingBefore = currentUser.rating;
+    const score = resultToScore(result as "win" | "loss" | "draw");
+    ratingAfter = calculateNewRating(ratingBefore, PHANTOM_OPPONENT_RATING, score);
+
+    await db.update(user).set({ rating: ratingAfter }).where(eq(user.id, session.user.id));
   }
 
   const [inserted] = await db
@@ -35,6 +54,8 @@ export async function POST(req: NextRequest) {
       playerColor,
       player2Name: player2Name ?? null,
       result,
+      ratingBefore,
+      ratingAfter,
     })
     .returning();
 
