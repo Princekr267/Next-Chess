@@ -1,4 +1,4 @@
-import { boolean, index, pgTable, serial, text, timestamp } from "drizzle-orm/pg-core";
+import { boolean, index, integer, pgTable, serial, text, timestamp } from "drizzle-orm/pg-core";
 
 export const user = pgTable("user", {
   id: text("id").primaryKey(),
@@ -6,6 +6,7 @@ export const user = pgTable("user", {
   email: text("email").notNull().unique(),
   emailVerified: boolean("email_verified").default(false).notNull(),
   image: text("image"),
+  rating: integer("rating").default(1200).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at")
     .defaultNow()
@@ -79,5 +80,7 @@ export const matches = pgTable("matches", {
   playerColor: text("player_color").notNull(), // "white" | "black"
   player2Name: text("player2_name"), // nullable, only for local games
   result: text("result").notNull(), // "win" | "loss" | "draw"
+  ratingBefore: integer("rating_before"), // nullable — only set for rated (local) games
+  ratingAfter: integer("rating_after"), // nullable — only set for rated (local) games
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });

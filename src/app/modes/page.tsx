@@ -71,7 +71,7 @@ export default function ModesPage() {
     <main className="min-h-[calc(100vh-130px)] flex flex-col items-center justify-center px-4 py-12">
       <div className="max-w-4xl w-full text-center mb-10">
         <span className="camp-badge camp-badge-yellow mb-3 shadow-[2px_2px_0px_#000000]">
-          ♟ CHESS BASE MODES
+          ♟ NEXT-CHESS MODES
         </span>
         <motion.h1
           initial={{ opacity: 0, y: -16 }}
@@ -138,7 +138,7 @@ export default function ModesPage() {
           className="text-xs font-black text-amber-300 hover:text-white transition-colors inline-flex items-center gap-1.5 uppercase tracking-wider"
         >
           <span>←</span>
-          <span>Back to Chess Base Home</span>
+          <span>Back to Next-Chess Home</span>
         </Link>
       </div>
     </main>

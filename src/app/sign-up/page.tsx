@@ -57,7 +57,7 @@ export default function SignUpPage() {
             ⚔️
           </div>
           <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-gray-950">
-            Join Chess Base
+            Join Next-Chess
           </h1>
           <p className="text-gray-600 text-xs sm:text-sm font-medium mt-1">
             Create your account to claim your tag & climb match ratings
@@ -106,7 +106,7 @@ export default function SignUpPage() {
             <input
               id="email"
               type="email"
-              placeholder="player@chessbase.com"
+              placeholder="player@nextchess.com"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required

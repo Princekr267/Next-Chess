@@ -4,8 +4,8 @@ import { Nav } from "@/components/nav";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Chess Base | Play Chess Online & Local",
-  description: "Playful, tactical chess base. Challenge bots, pass & play locally, or duel friends.",
+  title: "Next-Chess | Play Chess Online & Local",
+  description: "Playful, tactical next-chess. Challenge bots, pass & play locally, or duel friends.",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

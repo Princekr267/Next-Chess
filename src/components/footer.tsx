@@ -6,7 +6,7 @@ export function Footer() {
       <div className="max-w-6xl mx-auto flex flex-col sm:flex-row justify-between items-center gap-4 text-xs font-bold text-slate-400">
         <p className="flex items-center gap-2">
           <span className="text-amber-400">♟</span>
-          <span className="text-slate-300">© {new Date().getFullYear()} Chess Base. All rights reserved.</span>
+          <span className="text-slate-300">© {new Date().getFullYear()} Next-Chess. All rights reserved.</span>
         </p>
         <div className="flex items-center gap-6">
           <Link href="/modes" className="hover:text-amber-300 transition-colors">
