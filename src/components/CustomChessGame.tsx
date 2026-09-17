@@ -51,6 +51,12 @@ export function CustomChessGame() {
   const [showMobileHistory, setShowMobileHistory] = useState(false);
   const [confirmReset, setConfirmReset] = useState(false);
 
+  // Draw and Resign states
+  const [manualResult, setManualResult] = useState<"win" | "loss" | "draw" | null>(null);
+  const [manualReason, setManualReason] = useState<string | null>(null);
+  const [confirmResign, setConfirmResign] = useState(false);
+  const [drawOffer, setDrawOffer] = useState<"White" | "Black" | null>(null);
+
   // Track window resize for mobile optimizations
   useEffect(() => {
     function handleResize() {
@@ -188,6 +194,7 @@ export function CustomChessGame() {
   // ---- Result detection ----
   // Returns result from the logged-in player's perspective, or null if game isn't over.
   function getResult(): "win" | "loss" | "draw" | null {
+    if (manualResult) return manualResult;
     if (!game.isGameOver()) return null;
 
     if (
@@ -209,10 +216,10 @@ export function CustomChessGame() {
     return "draw";
   }
 
-  async function saveMatchIfFinished() {
+  async function saveMatch(outcome?: "win" | "loss" | "draw") {
     if (savedRef.current) return; // already saved this game
-    const result = getResult();
-    if (!result) return; // game not over yet
+    const resultToSave = outcome || getResult();
+    if (!resultToSave) return; // game not over yet
     if (!session) return; // guest — nothing to save
 
     savedRef.current = true;
@@ -227,14 +234,14 @@ export function CustomChessGame() {
           botDifficulty: null,
           playerColor: loggedInPlayerColor,
           player2Name: playerTwo,
-          result,
+          result: resultToSave,
         }),
       });
 
       if (!res.ok) throw new Error("Failed to save match");
 
       const data = await res.json();
-      // NEW: capture rating change if backend returned it
+      // capture rating change if backend returned it
       if (data.match?.ratingBefore != null && data.match?.ratingAfter != null) {
         setRatingChange({ before: data.match.ratingBefore, after: data.match.ratingAfter });
       }
@@ -244,6 +251,53 @@ export function CustomChessGame() {
       savedRef.current = false; // allow retry
       setSaveStatus("error");
     }
+  }
+
+  function saveMatchIfFinished() {
+    saveMatch();
+  }
+
+  // ---- Resign & Draw Handlers ----
+  function handleResign() {
+    if (game.isGameOver() || manualResult) return;
+    if (!confirmResign) {
+      setConfirmResign(true);
+      setTimeout(() => setConfirmResign(false), 4000);
+      return;
+    }
+    setConfirmResign(false);
+
+    // Current active player resigns
+    const resigningColor = turn.toLowerCase() as "white" | "black";
+    const winnerColor = resigningColor === "white" ? "black" : "white";
+    const resigningPlayerName = resigningColor === "white" ? playerOne : playerTwo;
+    const winnerPlayerName = resigningColor === "white" ? playerTwo : playerOne;
+
+    const outcome: "win" | "loss" = winnerColor === loggedInPlayerColor ? "win" : "loss";
+    const reasonText = `${resigningPlayerName} (${turn}) resigned. ${winnerPlayerName} wins!`;
+
+    setManualResult(outcome);
+    setManualReason(reasonText);
+    saveMatch(outcome);
+  }
+
+  function handleOfferDraw() {
+    if (game.isGameOver() || manualResult) return;
+    setDrawOffer(turn);
+  }
+
+  function handleAcceptDraw() {
+    if (!drawOffer) return;
+    const offeringPlayer = drawOffer === "White" ? playerOne : playerTwo;
+    const acceptingPlayer = drawOffer === "White" ? playerTwo : playerOne;
+    setDrawOffer(null);
+    setManualResult("draw");
+    setManualReason(`Draw agreed mutually between ${offeringPlayer} and ${acceptingPlayer} 🤝`);
+    saveMatch("draw");
+  }
+
+  function handleDeclineDraw() {
+    setDrawOffer(null);
   }
 
   // ---- Game action handlers ----
@@ -256,6 +310,10 @@ export function CustomChessGame() {
     setSaveStatus("idle");
     setRatingChange(null);
     setConfirmReset(false);
+    setManualResult(null);
+    setManualReason(null);
+    setConfirmResign(false);
+    setDrawOffer(null);
     setLoggedInPlayerColor("white"); // reset color choice for next game
     if (session?.user?.name) setPlayerOne(session.user.name);
     try {
@@ -413,6 +471,43 @@ export function CustomChessGame() {
     </div>
   );
 
+  // Draw Offer Confirmation Modal
+  const renderDrawOfferModal = () => {
+    if (!drawOffer) return null;
+    const offeringPlayer = drawOffer === "White" ? playerOne : playerTwo;
+    return (
+      <div
+        className="fixed inset-x-4 top-20 sm:top-24 max-w-sm mx-auto z-50 camp-card-canvas p-4 text-center animate-in zoom-in-95 duration-150"
+        style={{
+          boxShadow:
+            "0 12px 36px rgba(0,0,0,0.6), inset -3px -3px 8px rgba(0,0,0,0.1), inset 3px 3px 8px rgba(255,255,255,0.7)",
+        }}
+      >
+        <div className="text-2xl mb-1">🤝</div>
+        <h4 className="text-base font-black text-gray-900 mb-1">Draw Offered</h4>
+        <p className="text-xs text-gray-600 mb-3 font-medium">
+          <strong>{offeringPlayer}</strong> ({drawOffer}) offers a mutual draw. Do you accept?
+        </p>
+        <div className="flex items-center justify-center gap-2">
+          <button
+            type="button"
+            onClick={handleAcceptDraw}
+            className="camp-btn camp-btn-yellow text-xs py-1.5 px-4 font-black shadow-[1px_1px_0px_#000]"
+          >
+            Accept Draw
+          </button>
+          <button
+            type="button"
+            onClick={handleDeclineDraw}
+            className="camp-btn camp-btn-slate text-xs py-1.5 px-4 font-black shadow-[1px_1px_0px_#000]"
+          >
+            Decline
+          </button>
+        </div>
+      </div>
+    );
+  };
+
   // =========================================================================
   // 1. MOBILE FULLSCREEN VIEW
   // =========================================================================
@@ -481,12 +576,37 @@ export function CustomChessGame() {
             <button
               type="button"
               onClick={handleUndo}
-              disabled={moves.length === 0}
+              disabled={moves.length === 0 || !!result}
               className="camp-btn camp-btn-slate text-[11px] py-1 px-2 font-bold shadow-[1px_1px_0px_#000000] flex items-center gap-1 disabled:opacity-40"
               title="Undo move"
             >
               <Undo2 className="w-3.5 h-3.5" />
             </button>
+
+            {gameHasStarted && !result && (
+              <>
+                <button
+                  type="button"
+                  onClick={handleOfferDraw}
+                  className="camp-btn camp-btn-slate text-[11px] py-1 px-2 font-bold shadow-[1px_1px_0px_#000000] flex items-center gap-1 hover:scale-105 active:scale-95 transition-all"
+                  title="Offer draw"
+                >
+                  🤝
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleResign}
+                  className={`camp-btn text-[11px] py-1 px-2 font-bold shadow-[1px_1px_0px_#000000] flex items-center gap-1 hover:scale-105 active:scale-95 transition-all ${
+                    confirmResign ? "camp-btn-red bg-rose-500 text-white animate-pulse" : "camp-btn-slate"
+                  }`}
+                  title="Resign game"
+                >
+                  <span>🏳️</span>
+                  {confirmResign && <span className="text-[10px]">?</span>}
+                </button>
+              </>
+            )}
 
             <button
               type="button"
@@ -511,6 +631,8 @@ export function CustomChessGame() {
           </div>
         </div>
 
+        {renderDrawOfferModal()}
+
         {showMobileHistory && (
           <MoveHistory
             moves={moves}
@@ -521,6 +643,7 @@ export function CustomChessGame() {
 
         <GameResultCard
           result={result}
+          reason={manualReason}
           session={session}
           saveStatus={saveStatus}
           onPlayAgain={resetGame}
@@ -596,17 +719,42 @@ export function CustomChessGame() {
           />
 
           {/* Actions */}
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <button
               type="button"
               onClick={handleUndo}
-              disabled={moves.length === 0}
+              disabled={moves.length === 0 || !!result}
               className="camp-btn camp-btn-slate text-xs py-2 px-3.5 font-black shadow-[2px_2px_0px_#000000] flex items-center gap-1.5 disabled:opacity-40"
               title="Undo last move"
             >
               <Undo2 className="w-3.5 h-3.5" />
               <span>Undo</span>
             </button>
+
+            {gameHasStarted && !result && (
+              <>
+                <button
+                  type="button"
+                  onClick={handleOfferDraw}
+                  className="camp-btn camp-btn-slate text-xs py-2 px-3 font-black shadow-[2px_2px_0px_#000000] flex items-center gap-1 hover:scale-105 active:scale-95 transition-all"
+                  title="Offer mutual draw"
+                >
+                  <span>🤝</span>
+                  <span>Draw</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleResign}
+                  className={`camp-btn text-xs py-2 px-3 font-black shadow-[2px_2px_0px_#000000] flex items-center gap-1 hover:scale-105 active:scale-95 transition-all ${
+                    confirmResign ? "camp-btn-red bg-rose-500 text-white animate-pulse" : "camp-btn-slate"
+                  }`}
+                  title="Resign game"
+                >
+                  <span>🏳️</span>
+                  <span>{confirmResign ? "Confirm?" : "Resign"}</span>
+                </button>
+              </>
+            )}
 
             <button
               type="button"
@@ -616,18 +764,21 @@ export function CustomChessGame() {
               }`}
             >
               <span>↺</span>
-              <span>{confirmReset ? "Confirm Reset Game?" : "New Game"}</span>
+              <span>{confirmReset ? "Reset?" : "New Game"}</span>
             </button>
           </div>
 
           <GameResultCard
             result={result}
+            reason={manualReason}
             session={session}
             saveStatus={saveStatus}
             onPlayAgain={resetGame}
             ratingChange={ratingChange}
           />
         </div>
+
+        {renderDrawOfferModal()}
       </div>
     );
   }
@@ -661,13 +812,39 @@ export function CustomChessGame() {
           <button
             type="button"
             onClick={handleUndo}
-            disabled={moves.length === 0}
+            disabled={moves.length === 0 || !!result}
             title="Undo move"
             className="camp-btn camp-btn-slate text-xs py-1 px-2 sm:py-1.5 sm:px-2.5 font-black shadow-[2px_2px_0px_#000000] flex items-center gap-1 hover:scale-105 active:scale-95 transition-all disabled:opacity-40"
           >
             <Undo2 className="w-3.5 h-3.5" />
             <span className="hidden xs:inline">Undo</span>
           </button>
+
+          {gameHasStarted && !result && (
+            <>
+              <button
+                type="button"
+                onClick={handleOfferDraw}
+                title="Offer mutual draw"
+                className="camp-btn camp-btn-slate text-xs py-1 px-2 sm:py-1.5 sm:px-2.5 font-black shadow-[2px_2px_0px_#000000] flex items-center gap-1 hover:scale-105 active:scale-95 transition-all"
+              >
+                <span>🤝</span>
+                <span className="hidden xs:inline">Draw</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={handleResign}
+                title="Resign game"
+                className={`camp-btn text-xs py-1 px-2 sm:py-1.5 sm:px-2.5 font-black shadow-[2px_2px_0px_#000000] flex items-center gap-1 hover:scale-105 active:scale-95 transition-all ${
+                  confirmResign ? "camp-btn-red bg-rose-500 text-white animate-pulse" : "camp-btn-slate"
+                }`}
+              >
+                <span>🏳️</span>
+                <span className="hidden xs:inline">{confirmResign ? "Confirm?" : "Resign"}</span>
+              </button>
+            </>
+          )}
 
           <button
             type="button"
@@ -693,12 +870,15 @@ export function CustomChessGame() {
         </div>
       </div>
 
+      {renderDrawOfferModal()}
+
       {/* NEW: Color picker (before first move only) */}
       {!gameHasStarted && renderColorPicker()}
 
       {/* Result notification (with rating change) */}
       <GameResultCard
         result={result}
+        reason={manualReason}
         session={session}
         saveStatus={saveStatus}
         onPlayAgain={resetGame}

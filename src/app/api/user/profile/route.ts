@@ -96,7 +96,7 @@ export async function GET(req: NextRequest) {
 }
 
 // PATCH /api/user/profile
-// Updates the user's display name
+// Updates the user's display name and/or avatar image
 export async function PATCH(req: NextRequest) {
   const session = await auth.api.getSession({ headers: req.headers });
 
@@ -106,21 +106,42 @@ export async function PATCH(req: NextRequest) {
 
   try {
     const body = await req.json();
-    const name = typeof body.name === "string" ? body.name.trim() : "";
+    const updateData: { name?: string; image?: string; updatedAt: Date } = {
+      updatedAt: new Date(),
+    };
 
-    if (!name || name.length < 2 || name.length > 50) {
+    if (typeof body.name === "string") {
+      const trimmedName = body.name.trim();
+      if (trimmedName.length < 2 || trimmedName.length > 50) {
+        return NextResponse.json(
+          { error: "Name must be between 2 and 50 characters." },
+          { status: 400 }
+        );
+      }
+      updateData.name = trimmedName;
+    }
+
+    if (typeof body.image === "string") {
+      // Validate string length to prevent oversized payloads
+      if (body.image.length > 1000) {
+        return NextResponse.json(
+          { error: "Avatar data is too large." },
+          { status: 400 }
+        );
+      }
+      updateData.image = body.image;
+    }
+
+    if (!updateData.name && updateData.image === undefined) {
       return NextResponse.json(
-        { error: "Name must be between 2 and 50 characters." },
+        { error: "No fields provided to update." },
         { status: 400 }
       );
     }
 
     const [updated] = await db
       .update(user)
-      .set({
-        name,
-        updatedAt: new Date(),
-      })
+      .set(updateData)
       .where(eq(user.id, session.user.id))
       .returning();
 

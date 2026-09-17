@@ -5,6 +5,14 @@ import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import { authClient } from "@/lib/auth-client";
 import { RatingHistoryChart, RatingPoint } from "@/components/profile/RatingHistoryChart";
+import {
+  parseAvatar,
+  serializeAvatar,
+  CHESS_PIECE_OPTIONS,
+  AVATAR_COLOR_PALETTES,
+  AvatarData,
+  DEFAULT_AVATAR,
+} from "@/lib/avatar";
 
 interface UserProfileData {
   user: {
@@ -66,6 +74,11 @@ export default function ProfilePage() {
   const [updateMessage, setUpdateMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [verifyStatus, setVerifyStatus] = useState<string | null>(null);
 
+  // Avatar customization state
+  const [avatar, setAvatar] = useState<AvatarData>(DEFAULT_AVATAR);
+  const [savingAvatar, setSavingAvatar] = useState(false);
+  const [avatarMsg, setAvatarMsg] = useState<{ type: "success" | "error"; text: string } | null>(null);
+
   // Fetch full profile and rating history from the backend
   useEffect(() => {
     async function fetchProfile() {
@@ -79,6 +92,7 @@ export default function ProfilePage() {
           const data: UserProfileData = await res.json();
           setProfileData(data);
           setEditName(data.user.name);
+          setAvatar(parseAvatar(data.user.image, data.user.name));
         }
       } catch (err) {
         console.error("Failed to fetch profile data:", err);
@@ -91,6 +105,36 @@ export default function ProfilePage() {
       fetchProfile();
     }
   }, [session, sessionLoading]);
+
+  // Handle Avatar Save
+  const handleSaveAvatar = async () => {
+    setSavingAvatar(true);
+    setAvatarMsg(null);
+    try {
+      const res = await fetch("/api/user/profile", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ image: serializeAvatar(avatar) }),
+      });
+      const json = await res.json();
+      if (res.ok) {
+        setAvatarMsg({ type: "success", text: "Chess avatar saved!" });
+        if (profileData) {
+          setProfileData({
+            ...profileData,
+            user: { ...profileData.user, image: json.user.image },
+          });
+        }
+        setTimeout(() => setAvatarMsg(null), 3000);
+      } else {
+        setAvatarMsg({ type: "error", text: json.error || "Failed to save avatar." });
+      }
+    } catch {
+      setAvatarMsg({ type: "error", text: "Network error. Try again." });
+    } finally {
+      setSavingAvatar(false);
+    }
+  };
 
   // Handle Display Name Update
   const handleUpdateName = async (e: React.FormEvent) => {
@@ -264,15 +308,17 @@ export default function ProfilePage() {
           className="lg:col-span-2 camp-card-canvas p-6 sm:p-8 flex flex-col justify-between relative overflow-hidden"
         >
           <div className="flex flex-col sm:flex-row items-start sm:items-center gap-5">
-            {/* Clay Avatar / Initial */}
+            {/* Clay Avatar */}
             <div
-              className="w-20 h-20 rounded-3xl bg-amber-200 flex items-center justify-center text-3xl font-black text-amber-950 shrink-0 select-none"
+              className="w-20 h-20 rounded-3xl flex items-center justify-center text-4xl font-black shrink-0 select-none transition-transform hover:scale-105"
               style={{
+                backgroundColor: avatar.bg,
+                color: avatar.textColor,
                 boxShadow:
                   "6px 6px 14px rgba(28,18,6,0.35), inset -4px -4px 8px rgba(28,18,6,0.2), inset 4px 4px 8px rgba(255,255,255,0.7)",
               }}
             >
-              {user.name.charAt(0).toUpperCase()}
+              {avatar.piece}
             </div>
 
             {/* User Meta */}
@@ -305,6 +351,105 @@ export default function ProfilePage() {
                 )}
               </div>
             </div>
+          </div>
+
+          {/* Avatar Customization Section */}
+          <div className="mt-6 pt-5 border-t border-amber-900/10">
+            <div className="flex items-center justify-between gap-2 mb-3">
+              <div>
+                <span className="text-xs font-black uppercase tracking-wider text-gray-900 block">
+                  🎨 Chess Piece Avatar
+                </span>
+                <span className="text-[11px] text-gray-500 font-medium">
+                  Choose your battle piece and clay color palette
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={handleSaveAvatar}
+                disabled={savingAvatar}
+                className="camp-btn camp-btn-yellow text-xs py-1.5 px-4 font-black shadow-[2px_2px_0px_#000] disabled:opacity-50"
+              >
+                {savingAvatar ? "Saving…" : "Save Avatar"}
+              </button>
+            </div>
+
+            {/* Piece Picker */}
+            <div className="mb-3">
+              <span className="text-[10px] font-extrabold text-gray-500 uppercase tracking-wider block mb-1.5">
+                Select Piece
+              </span>
+              <div className="flex flex-wrap gap-2">
+                {CHESS_PIECE_OPTIONS.map((p) => {
+                  const isSelected = avatar.piece === p.piece;
+                  return (
+                    <button
+                      key={p.piece}
+                      type="button"
+                      onClick={() => setAvatar((prev) => ({ ...prev, piece: p.piece, label: p.label }))}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-2xl text-xs font-black transition-all ${
+                        isSelected
+                          ? "bg-amber-300 text-amber-950 scale-105 shadow-[2px_2px_0px_#000]"
+                          : "bg-white/80 text-gray-700 hover:bg-white hover:scale-102"
+                      }`}
+                      style={{
+                        boxShadow: isSelected
+                          ? "3px 3px 8px rgba(0,0,0,0.15), inset -2px -2px 4px rgba(0,0,0,0.1), inset 2px 2px 4px rgba(255,255,255,0.6)"
+                          : "2px 2px 5px rgba(0,0,0,0.08)",
+                      }}
+                    >
+                      <span className="text-base leading-none">{p.piece}</span>
+                      <span>{p.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Color Palette Picker */}
+            <div>
+              <span className="text-[10px] font-extrabold text-gray-500 uppercase tracking-wider block mb-1.5">
+                Clay Color Palette
+              </span>
+              <div className="flex flex-wrap gap-2 items-center">
+                {AVATAR_COLOR_PALETTES.map((c) => {
+                  const isSelected = avatar.bg === c.bg;
+                  return (
+                    <button
+                      key={c.id}
+                      type="button"
+                      onClick={() => setAvatar((prev) => ({ ...prev, bg: c.bg, textColor: c.textColor }))}
+                      title={c.label}
+                      className={`w-7 h-7 rounded-full flex items-center justify-center transition-all ${
+                        isSelected ? "ring-2 ring-amber-950 scale-110 shadow-[2px_2px_0px_#000]" : "hover:scale-105"
+                      }`}
+                      style={{
+                        backgroundColor: c.bg,
+                        boxShadow:
+                          "2px 2px 5px rgba(0,0,0,0.2), inset -1px -1px 2px rgba(0,0,0,0.15), inset 1px 1px 2px rgba(255,255,255,0.6)",
+                      }}
+                    >
+                      {isSelected && <span className="text-[10px] font-black" style={{ color: c.textColor }}>✓</span>}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <AnimatePresence>
+              {avatarMsg && (
+                <motion.p
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: "auto" }}
+                  exit={{ opacity: 0, height: 0 }}
+                  className={`text-xs font-bold mt-2.5 ${
+                    avatarMsg.type === "success" ? "text-emerald-700" : "text-rose-700"
+                  }`}
+                >
+                  {avatarMsg.text}
+                </motion.p>
+              )}
+            </AnimatePresence>
           </div>
 
           {/* Quick Edit Display Name */}

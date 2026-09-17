@@ -2,6 +2,7 @@ import React from "react";
 
 interface GameResultCardProps {
   result: "win" | "loss" | "draw" | null;
+  reason?: string | null;
   session: any;
   saveStatus: "idle" | "saving" | "saved" | "error";
   onPlayAgain: () => void;
@@ -12,6 +13,7 @@ interface GameResultCardProps {
 
 export function GameResultCard({
   result,
+  reason = null,
   session,
   saveStatus,
   onPlayAgain,
@@ -33,7 +35,8 @@ export function GameResultCard({
       <div
         className={`absolute inset-x-4 top-1/2 -translate-y-1/2 z-50 camp-card-canvas p-4 text-sm font-black text-center animate-in zoom-in-95 duration-200 ${className}`}
       >
-        <div className="text-lg font-black mb-1">{resultText}</div>
+        <div className="text-lg font-black mb-0.5">{resultText}</div>
+        {reason && <p className="text-xs font-bold text-amber-900/80 mb-2">{reason}</p>}
         {!session && (
           <p className="text-xs font-medium text-gray-600 mb-2">
             Sign in to save match results to your history.
@@ -74,6 +77,7 @@ export function GameResultCard({
       className={`camp-card-canvas w-full px-4 py-3 text-sm font-black text-center ${className}`}
     >
       <div className="text-base sm:text-lg font-black">{resultText}</div>
+      {reason && <p className="text-xs font-bold text-amber-900/80 mt-0.5">{reason}</p>}
       {!session && (
         <p className="text-xs font-medium text-gray-600 mt-1">
           Sign in to save match results to your history.

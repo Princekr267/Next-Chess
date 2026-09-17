@@ -108,6 +108,33 @@ export default function HistoryPage() {
     getHistory();
   }, []);
 
+  // ---- Filters and pagination ----
+  const [resultFilter, setResultFilter] = useState<"all" | "win" | "loss" | "draw">("all");
+  const [opponentFilter, setOpponentFilter] = useState<"all" | "local" | "bot">("all");
+  const [currentPage, setCurrentPage] = useState(1);
+  const PAGE_SIZE = 8;
+
+  // Filter matches
+  const filteredMatches = matches.filter((m) => {
+    if (resultFilter !== "all" && m.result !== resultFilter) return false;
+    if (opponentFilter !== "all" && m.opponentType !== opponentFilter) return false;
+    return true;
+  });
+
+  const totalPages = Math.max(1, Math.ceil(filteredMatches.length / PAGE_SIZE));
+  const safePage = Math.min(currentPage, totalPages);
+  const paginatedMatches = filteredMatches.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
+
+  const handleResultFilterChange = (filter: "all" | "win" | "loss" | "draw") => {
+    setResultFilter(filter);
+    setCurrentPage(1);
+  };
+
+  const handleOpponentFilterChange = (filter: "all" | "local" | "bot") => {
+    setOpponentFilter(filter);
+    setCurrentPage(1);
+  };
+
   // ---- Derived stats ----
   const wins = matches.filter((m) => m.result === "win").length;
   const losses = matches.filter((m) => m.result === "loss").length;
@@ -244,81 +271,255 @@ export default function HistoryPage() {
             </div>
           )}
 
-          {/* Match List */}
+          {/* Filters & Match List */}
           {matches.length > 0 && (
-            <div className="flex flex-col gap-3">
-              {matches.map((match, i) => (
-                <motion.div
-                  key={match.id}
-                  initial={{ opacity: 0, y: 12 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: i * 0.04 }}
-                  className={`relative flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-2xl px-4 py-3.5 transition-transform hover:-translate-y-0.5 ${
-                    match.result === "win"
-                      ? "bg-emerald-950/40"
-                      : match.result === "loss"
-                      ? "bg-rose-950/40"
-                      : "bg-slate-800/60"
-                  }`}
-                  style={{ boxShadow: "4px 4px 12px rgba(28,18,6,0.45), inset -3px -3px 8px rgba(28,18,6,0.3), inset 3px 3px 8px rgba(255,210,130,0.06)" }}
-                >
-                  {/* Left: result + opponent */}
-                  <div className="flex items-center gap-3 min-w-0">
-                    {/* Result icon */}
-                    <div
-                      className={`w-10 h-10 shrink-0 rounded-xl flex items-center justify-center text-xl ${
+            <div>
+              {/* ── Filters Bar ── */}
+              <div
+                className="mb-6 p-4 rounded-2xl bg-amber-950/40 border border-amber-900/30 flex flex-col md:flex-row items-start md:items-center justify-between gap-4"
+                style={{
+                  boxShadow:
+                    "4px 4px 12px rgba(28,18,6,0.35), inset -2px -2px 6px rgba(28,18,6,0.2), inset 2px 2px 6px rgba(255,210,130,0.06)",
+                }}
+              >
+                {/* Result Filter Tabs */}
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 mr-1">
+                    Result:
+                  </span>
+                  {(
+                    [
+                      { id: "all", label: `All (${matches.length})` },
+                      { id: "win", label: `🏆 Wins (${wins})` },
+                      { id: "loss", label: `💀 Losses (${losses})` },
+                      { id: "draw", label: `🤝 Draws (${draws})` },
+                    ] as const
+                  ).map((tab) => {
+                    const isActive = resultFilter === tab.id;
+                    return (
+                      <button
+                        key={tab.id}
+                        type="button"
+                        onClick={() => handleResultFilterChange(tab.id)}
+                        className={`text-xs font-black px-3 py-1.5 rounded-xl transition-all ${
+                          isActive
+                            ? "bg-amber-300 text-amber-950 shadow-[2px_2px_0px_#000] scale-102"
+                            : "bg-slate-800/80 text-slate-300 hover:text-white hover:bg-slate-700"
+                        }`}
+                      >
+                        {tab.label}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Opponent Filter Tabs */}
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 mr-1">
+                    Mode:
+                  </span>
+                  {(
+                    [
+                      { id: "all", label: "All Modes" },
+                      { id: "local", label: "🏠 Local" },
+                      { id: "bot", label: "🤖 Bot" },
+                    ] as const
+                  ).map((tab) => {
+                    const isActive = opponentFilter === tab.id;
+                    return (
+                      <button
+                        key={tab.id}
+                        type="button"
+                        onClick={() => handleOpponentFilterChange(tab.id)}
+                        className={`text-xs font-black px-3 py-1.5 rounded-xl transition-all ${
+                          isActive
+                            ? "bg-amber-300 text-amber-950 shadow-[2px_2px_0px_#000] scale-102"
+                            : "bg-slate-800/80 text-slate-300 hover:text-white hover:bg-slate-700"
+                        }`}
+                      >
+                        {tab.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Match Count Indicator */}
+              <div className="flex items-center justify-between text-xs text-slate-400 font-bold mb-3 px-1">
+                <span>
+                  Showing{" "}
+                  <strong className="text-amber-300">
+                    {filteredMatches.length === 0 ? 0 : (safePage - 1) * PAGE_SIZE + 1}–
+                    {Math.min(safePage * PAGE_SIZE, filteredMatches.length)}
+                  </strong>{" "}
+                  of <strong className="text-white">{filteredMatches.length}</strong> matches
+                  {(resultFilter !== "all" || opponentFilter !== "all") && (
+                    <span className="text-amber-400/80 ml-1.5 font-medium">(Filtered)</span>
+                  )}
+                </span>
+
+                {(resultFilter !== "all" || opponentFilter !== "all") && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setResultFilter("all");
+                      setOpponentFilter("all");
+                      setCurrentPage(1);
+                    }}
+                    className="text-[11px] text-amber-400 hover:text-amber-200 underline font-extrabold"
+                  >
+                    Reset Filters
+                  </button>
+                )}
+              </div>
+
+              {/* Zero Filtered Results */}
+              {filteredMatches.length === 0 && (
+                <div className="camp-card-dark p-8 text-center rounded-2xl my-4">
+                  <div className="text-3xl mb-2">🔍</div>
+                  <h3 className="text-base font-black text-white mb-1">No Matches Found</h3>
+                  <p className="text-xs text-slate-400 mb-4">
+                    No games match the current filter criteria.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setResultFilter("all");
+                      setOpponentFilter("all");
+                      setCurrentPage(1);
+                    }}
+                    className="camp-btn camp-btn-yellow text-xs py-1.5 px-4 font-black"
+                  >
+                    Clear Filters
+                  </button>
+                </div>
+              )}
+
+              {/* Paginated Match List */}
+              {paginatedMatches.length > 0 && (
+                <div className="flex flex-col gap-3">
+                  {paginatedMatches.map((match, i) => (
+                    <motion.div
+                      key={match.id}
+                      initial={{ opacity: 0, y: 8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: i * 0.03 }}
+                      className={`relative flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-2xl px-4 py-3.5 transition-transform hover:-translate-y-0.5 ${
                         match.result === "win"
-                          ? "bg-emerald-400"
+                          ? "bg-emerald-950/40"
                           : match.result === "loss"
-                          ? "bg-rose-500"
-                          : "bg-amber-300"
+                          ? "bg-rose-950/40"
+                          : "bg-slate-800/60"
                       }`}
-                      style={{ boxShadow: "3px 3px 8px rgba(28,18,6,0.4), inset -2px -2px 5px rgba(28,18,6,0.25), inset 2px 2px 5px rgba(255,215,140,0.4)" }}
+                      style={{
+                        boxShadow:
+                          "4px 4px 12px rgba(28,18,6,0.45), inset -3px -3px 8px rgba(28,18,6,0.3), inset 3px 3px 8px rgba(255,210,130,0.06)",
+                      }}
                     >
-                      {match.result === "win" ? "🏆" : match.result === "loss" ? "💀" : "🤝"}
-                    </div>
+                      {/* Left: result + opponent */}
+                      <div className="flex items-center gap-3 min-w-0">
+                        {/* Result icon */}
+                        <div
+                          className={`w-10 h-10 shrink-0 rounded-xl flex items-center justify-center text-xl ${
+                            match.result === "win"
+                              ? "bg-emerald-400"
+                              : match.result === "loss"
+                              ? "bg-rose-500"
+                              : "bg-amber-300"
+                          }`}
+                          style={{
+                            boxShadow:
+                              "3px 3px 8px rgba(28,18,6,0.4), inset -2px -2px 5px rgba(28,18,6,0.25), inset 2px 2px 5px rgba(255,215,140,0.4)",
+                          }}
+                        >
+                          {match.result === "win" ? "🏆" : match.result === "loss" ? "💀" : "🤝"}
+                        </div>
 
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <ResultBadge result={match.result} />
-                        {match.opponentType === "bot" && (
-                          <span className="camp-badge camp-badge-orange text-[10px] px-2">
-                            🤖 Bot{match.botDifficulty ? ` · ${match.botDifficulty}` : ""}
-                          </span>
-                        )}
-                        {match.opponentType === "local" && (
-                          <span className="camp-badge camp-badge-teal text-[10px] px-2">
-                            🏠 Local
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <ResultBadge result={match.result} />
+                            {match.opponentType === "bot" && (
+                              <span className="camp-badge camp-badge-orange text-[10px] px-2">
+                                🤖 Bot{match.botDifficulty ? ` · ${match.botDifficulty}` : ""}
+                              </span>
+                            )}
+                            {match.opponentType === "local" && (
+                              <span className="camp-badge camp-badge-teal text-[10px] px-2">
+                                🏠 Local
+                              </span>
+                            )}
+                          </div>
+
+                          <div className="flex items-center gap-3 mt-1.5 flex-wrap">
+                            <ColorPip color={match.playerColor} />
+                            {match.player2Name && (
+                              <span className="text-xs text-slate-400 font-medium truncate max-w-[120px]">
+                                vs {match.player2Name}
+                              </span>
+                            )}
+                            <span className="text-[10px] text-slate-500 font-medium">
+                              {formatDate(match.createdAt)}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Right: Rating change */}
+                      <div className="sm:text-right shrink-0">
+                        {match.ratingBefore != null && match.ratingAfter != null ? (
+                          <RatingDelta before={match.ratingBefore} after={match.ratingAfter} />
+                        ) : (
+                          <span className="text-[10px] text-slate-600 font-medium italic">
+                            Unrated
                           </span>
                         )}
                       </div>
+                    </motion.div>
+                  ))}
+                </div>
+              )}
 
-                      <div className="flex items-center gap-3 mt-1.5 flex-wrap">
-                        <ColorPip color={match.playerColor} />
-                        {match.player2Name && (
-                          <span className="text-xs text-slate-400 font-medium truncate max-w-[120px]">
-                            vs {match.player2Name}
-                          </span>
-                        )}
-                        <span className="text-[10px] text-slate-500 font-medium">
-                          {formatDate(match.createdAt)}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
+              {/* ── Pagination Bar ── */}
+              {totalPages > 1 && (
+                <div className="mt-8 flex flex-wrap items-center justify-center gap-2">
+                  <button
+                    type="button"
+                    disabled={safePage <= 1}
+                    onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                    className="camp-btn camp-btn-slate text-xs py-1.5 px-3 font-black disabled:opacity-40"
+                  >
+                    ← Prev
+                  </button>
 
-                  {/* Right: Rating change */}
-                  <div className="sm:text-right shrink-0">
-                    {match.ratingBefore != null && match.ratingAfter != null ? (
-                      <RatingDelta before={match.ratingBefore} after={match.ratingAfter} />
-                    ) : (
-                      <span className="text-[10px] text-slate-600 font-medium italic">
-                        Unrated
-                      </span>
-                    )}
-                  </div>
-                </motion.div>
-              ))}
+                  {Array.from({ length: totalPages }, (_, idx) => idx + 1).map((pageNum) => {
+                    const isActive = pageNum === safePage;
+                    return (
+                      <button
+                        key={pageNum}
+                        type="button"
+                        onClick={() => setCurrentPage(pageNum)}
+                        className={`w-8 h-8 rounded-xl text-xs font-black transition-all ${
+                          isActive
+                            ? "camp-btn camp-btn-yellow scale-105"
+                            : "camp-btn camp-btn-slate opacity-80 hover:opacity-100"
+                        }`}
+                        style={{ padding: 0 }}
+                      >
+                        {pageNum}
+                      </button>
+                    );
+                  })}
+
+                  <button
+                    type="button"
+                    disabled={safePage >= totalPages}
+                    onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                    className="camp-btn camp-btn-slate text-xs py-1.5 px-3 font-black disabled:opacity-40"
+                  >
+                    Next →
+                  </button>
+                </div>
+              )}
             </div>
           )}
 

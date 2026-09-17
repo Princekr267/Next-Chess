@@ -6,6 +6,7 @@ import { authClient } from "@/lib/auth-client";
 import { useRouter } from "next/navigation";
 import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { parseAvatar } from "@/lib/avatar";
 
 const navLinks = [
   { href: "/modes", label: "Play", icon: "♟" },
@@ -153,6 +154,7 @@ export function Nav() {
       );
     }
     if (session) {
+      const avatar = parseAvatar(session.user.image, session.user.name);
       return (
         <div className={`flex ${layout === "col" ? "flex-col gap-2 w-full" : "flex-row items-center gap-2"}`}>
           {/* User pill linking to /profile */}
@@ -167,13 +169,15 @@ export function Nav() {
             }}
           >
             <span
-              className="w-6 h-6 rounded-full bg-amber-300 flex items-center justify-center text-[11px] font-black text-amber-950 leading-none select-none shrink-0"
+              className="w-6 h-6 rounded-full flex items-center justify-center text-[12px] font-black leading-none select-none shrink-0"
               style={{
+                backgroundColor: avatar.bg,
+                color: avatar.textColor,
                 boxShadow:
                   "2px 2px 6px rgba(0,0,0,0.2), inset -1px -1px 3px rgba(0,0,0,0.15), inset 1px 1px 3px rgba(255,255,255,0.6)",
               }}
             >
-              {session.user.name?.charAt(0).toUpperCase() ?? "?"}
+              {avatar.piece}
             </span>
             <span className="text-xs font-black text-amber-200 max-w-[90px] truncate">
               {session.user.name}
