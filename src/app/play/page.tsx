@@ -32,7 +32,9 @@ function PlayContent() {
           animate={{ opacity: 1, scale: 1 }}
           className="camp-card-canvas max-w-md w-full p-8 text-center"
         >
-          <div className="w-16 h-16 rounded-2xl bg-amber-400 border-[2.5px] border-black shadow-[3px_3px_0px_#000000] flex items-center justify-center mx-auto mb-4">
+          <div className="w-16 h-16 rounded-2xl bg-amber-200 flex items-center justify-center mx-auto mb-4"
+            style={{ boxShadow: "4px 4px 10px rgba(28,18,6,0.4), inset -3px -3px 7px rgba(28,18,6,0.25), inset 3px 3px 7px rgba(255,215,140,0.5)" }}
+          >
             {isBot ? (
               <svg className="w-9 h-9 text-black" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                 <rect width="18" height="12" x="3" y="6" rx="2" />
@@ -68,13 +70,13 @@ function PlayContent() {
           <div className="flex flex-col gap-3">
             <Link
               href="/play?mode=local"
-              className="camp-btn camp-btn-ember w-full py-3 text-sm font-black shadow-[3px_3px_0px_#000000]"
+              className="camp-btn camp-btn-ember w-full py-3 text-sm font-black"
             >
               Deploy Local Board
             </Link>
             <Link
               href="/modes"
-              className="camp-btn camp-btn-white w-full py-2.5 text-xs font-bold text-gray-800 shadow-[2px_2px_0px_#000000]"
+              className="camp-btn camp-btn-white w-full py-2.5 text-xs font-bold text-gray-800"
             >
               ← Choose Different Mode
             </Link>
@@ -93,13 +95,14 @@ function PlayContent() {
       : "Next-Chess Board";
 
   return (
-    <div className="p-4 sm:p-8 max-w-5xl mx-auto w-full">
+    <div className="p-3 sm:p-6 lg:p-8 max-w-6xl mx-auto w-full">
       {/* Guest Notice */}
       {showGuestNotice && (
         <motion.div
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
-          className="mb-6 flex items-start justify-between gap-4 rounded-2xl border-[2.5px] border-black bg-amber-400 p-4 text-xs sm:text-sm text-black shadow-[4px_4px_0px_#000000]"
+          className="mb-6 flex items-start justify-between gap-4 rounded-2xl bg-amber-200 p-4 text-xs sm:text-sm text-amber-950"
+          style={{ boxShadow: "4px 4px 12px rgba(28,18,6,0.3), inset -3px -3px 8px rgba(28,18,6,0.15), inset 3px 3px 8px rgba(255,215,140,0.4)" }}
         >
           <div className="flex items-start gap-3">
             <span className="w-7 h-7 rounded-xl bg-black text-amber-400 flex items-center justify-center font-black text-sm shrink-0 mt-0.5">
@@ -116,7 +119,7 @@ function PlayContent() {
           </div>
           <button
             onClick={() => setShowGuestNotice(false)}
-            className="shrink-0 camp-btn camp-btn-white text-xs py-1 px-3 font-black shadow-[2px_2px_0px_#000000]"
+            className="shrink-0 camp-btn camp-btn-white text-xs py-1 px-3 font-black"
           >
             Got It
           </button>
@@ -124,9 +127,12 @@ function PlayContent() {
       )}
 
       {/* Board Header */}
-      <div className="flex items-center justify-between mb-5 flex-wrap gap-3 pb-3 border-b-[2.5px] border-black/50">
+      <div className="flex items-center justify-between mb-5 flex-wrap gap-3 pb-3 border-b border-amber-900/20">
         <div className="flex items-center gap-2.5">
-          <span className="w-3.5 h-3.5 rounded-full bg-amber-400 border-2 border-black shadow-[1px_1px_0px_#000000]" />
+          <span
+            className="w-3.5 h-3.5 rounded-full bg-amber-300"
+            style={{ boxShadow: "1px 2px 5px rgba(28,18,6,0.35), inset -1px -1px 2px rgba(28,18,6,0.2), inset 1px 1px 2px rgba(255,215,140,0.4)" }}
+          />
           <h1 className="text-xl sm:text-2xl font-black text-white tracking-tight">
             {modeTitle}
           </h1>
@@ -137,7 +143,7 @@ function PlayContent() {
 
         <Link
           href="/modes"
-          className="camp-btn camp-btn-yellow text-xs py-1.5 px-3.5 font-black shadow-[2px_2px_0px_#000000]"
+          className="camp-btn camp-btn-yellow text-xs py-1.5 px-3.5 font-black"
         >
           ⇄ Change Mode
         </Link>

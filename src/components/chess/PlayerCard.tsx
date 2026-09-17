@@ -24,25 +24,40 @@ export function PlayerCard({
 
   return (
     <div
-      className={`w-full flex items-center justify-between rounded-xl bg-slate-900/90 border-[2px] border-black shadow-[3px_3px_0px_#000000] ${
-        isCompact ? "px-2.5 py-1.5" : "px-3.5 py-2"
-      } ${className}`}
+      className={`w-full flex items-center justify-between rounded-2xl transition-all duration-200 ${
+        isTurn
+          ? "bg-[#332415] border-2 border-amber-500/40 ring-2 ring-amber-500/20"
+          : "bg-[#261a0e]/95 border border-[#48331d]/60"
+      } ${isCompact ? "px-3 py-1.5" : "px-4 py-2.5"} ${className}`}
+      style={{
+        boxShadow: isTurn
+          ? "0 6px 20px rgba(24,14,5,0.45), inset -3px -3px 8px rgba(24,14,5,0.35), inset 3px 3px 8px rgba(255,215,130,0.12)"
+          : "4px 4px 14px rgba(24,14,5,0.4), inset -3px -3px 8px rgba(24,14,5,0.3), inset 3px 3px 8px rgba(255,215,130,0.06)",
+      }}
     >
-      <div className="flex items-center gap-2 min-w-0 flex-1">
+      <div className="flex items-center gap-2.5 min-w-0 flex-1">
+        {/* Piece Emblem */}
         <div
-          className={`w-6 h-6 sm:w-7 sm:h-7 rounded-lg flex items-center justify-center text-xs font-black shadow-[1px_1px_0px_#000] shrink-0 ${
+          className={`w-7 h-7 sm:w-8 sm:h-8 rounded-xl flex items-center justify-center text-sm font-black shrink-0 transition-transform ${
             isWhite
-              ? "bg-amber-400 text-black border border-black"
-              : "bg-black text-white border border-slate-700"
+              ? "bg-amber-300 text-amber-950"
+              : "bg-[#181008] text-amber-100 border border-amber-900/40"
           }`}
+          style={{
+            boxShadow: isWhite
+              ? "2px 2px 6px rgba(0,0,0,0.3), inset -2px -2px 4px rgba(180,120,30,0.3), inset 2px 2px 4px rgba(255,255,255,0.7)"
+              : "2px 2px 6px rgba(0,0,0,0.4), inset -2px -2px 4px rgba(0,0,0,0.5), inset 2px 2px 4px rgba(255,210,130,0.15)",
+          }}
         >
           {isWhite ? "♙" : "♟"}
         </div>
-        <div className="flex items-center gap-1.5 min-w-0 flex-1">
+
+        {/* Player Name and Color Tag */}
+        <div className="flex items-center gap-2 min-w-0 flex-1">
           <label
             htmlFor={id}
-            className={`text-[11px] font-bold uppercase tracking-wider shrink-0 ${
-              isWhite ? "text-amber-400/90" : "text-slate-400"
+            className={`text-[11px] sm:text-xs font-black uppercase tracking-wider shrink-0 ${
+              isWhite ? "text-amber-300/90" : "text-stone-400"
             }`}
           >
             {isWhite ? "White (You):" : "Black:"}
@@ -52,20 +67,31 @@ export function PlayerCard({
             type="text"
             value={name}
             onChange={(e) => onNameChange(e.target.value)}
-            className="bg-black/60 border border-slate-700 rounded-md px-2 py-0.5 text-xs text-white font-bold focus:outline-none focus:border-amber-400 transition-colors w-24 xs:w-32 sm:w-44"
+            className="bg-[#181008]/70 border border-amber-900/40 rounded-lg px-2.5 py-1 text-xs sm:text-sm text-amber-100 font-bold focus:outline-none focus:border-amber-400 focus:bg-[#181008] transition-all w-28 sm:w-44 placeholder:text-stone-500 shadow-inner"
+            placeholder={isWhite ? "Your Name" : "Opponent Name"}
           />
         </div>
       </div>
 
-      {isTurn && (
+      {/* Turn indicator */}
+      {isTurn ? (
         <span
-          className={`text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full border border-black shadow-[1px_1px_0px_#000000] animate-pulse shrink-0 ${
+          className={`text-[10px] sm:text-[11px] font-black uppercase tracking-wider px-3 py-1 rounded-full shrink-0 animate-pulse flex items-center gap-1.5 ${
             isWhite
-              ? "bg-amber-400 text-black"
-              : "bg-slate-700 text-amber-300"
+              ? "bg-amber-300 text-amber-950 font-black shadow-sm"
+              : "bg-stone-700 text-amber-200 border border-amber-500/30"
           }`}
+          style={{
+            boxShadow:
+              "2px 3px 8px rgba(0,0,0,0.35), inset -1px -1px 3px rgba(0,0,0,0.2), inset 1px 1px 3px rgba(255,255,255,0.4)",
+          }}
         >
+          <span className="w-1.5 h-1.5 rounded-full bg-amber-600 animate-ping inline-block" />
           {isWhite ? "Your Turn" : "To Move"}
+        </span>
+      ) : (
+        <span className="text-[10px] font-bold text-stone-500 px-2 py-0.5 uppercase tracking-wider shrink-0 hidden sm:inline-block">
+          Waiting
         </span>
       )}
     </div>

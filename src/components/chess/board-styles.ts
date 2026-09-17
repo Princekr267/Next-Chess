@@ -2,17 +2,17 @@ import React from "react";
 import { Chess, Square } from "chess.js";
 
 export const darkSquareStyle: React.CSSProperties = {
-  backgroundColor: "#3a2b22",
+  backgroundColor: "#4a3828",
   backgroundImage:
-    "linear-gradient(135deg, rgba(78, 56, 45, 0.28) 0%, rgba(45, 31, 24, 0.4) 60%, rgba(26, 17, 12, 0.55) 100%)",
-  boxShadow: "inset 0 0 0 1px rgba(0, 0, 0, 0.25)",
+    "linear-gradient(145deg, rgba(88, 66, 50, 0.3) 0%, rgba(52, 36, 26, 0.4) 60%, rgba(30, 19, 12, 0.5) 100%)",
+  boxShadow: "inset 0 0 0 1px rgba(0, 0, 0, 0.15)",
 };
 
 export const lightSquareStyle: React.CSSProperties = {
-  backgroundColor: "#dfd2bc",
+  backgroundColor: "#e8dcc8",
   backgroundImage:
-    "linear-gradient(135deg, rgba(255, 255, 255, 0.22) 0%, rgba(210, 194, 168, 0.25) 50%, rgba(184, 166, 138, 0.35) 100%)",
-  boxShadow: "inset 0 0 0 1px rgba(180, 158, 128, 0.3)",
+    "linear-gradient(145deg, rgba(255, 255, 255, 0.28) 0%, rgba(220, 205, 178, 0.2) 50%, rgba(196, 178, 150, 0.3) 100%)",
+  boxShadow: "inset 0 0 0 1px rgba(190, 168, 138, 0.2)",
 };
 
 export const dropSquareStyle: React.CSSProperties = {

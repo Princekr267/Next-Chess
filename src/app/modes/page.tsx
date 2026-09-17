@@ -106,7 +106,9 @@ export default function ModesPage() {
             )}
 
             <div>
-              <div className={`w-14 h-14 rounded-2xl ${mode.iconBg} border-[2.5px] border-black shadow-[3px_3px_0px_#000000] flex items-center justify-center mb-5 mx-auto`}>
+              <div className={`w-14 h-14 rounded-2xl ${mode.iconBg} flex items-center justify-center mb-5 mx-auto`}
+                style={{ boxShadow: "4px 4px 10px rgba(28,18,6,0.4), inset -3px -3px 7px rgba(28,18,6,0.25), inset 3px 3px 7px rgba(255,215,140,0.45)" }}
+              >
                 {mode.icon}
               </div>
               <div className="text-center mb-3">

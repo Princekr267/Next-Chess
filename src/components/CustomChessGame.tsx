@@ -4,7 +4,8 @@ import { useState, useMemo, useRef, useEffect } from "react";
 import { Chess, Square } from "chess.js";
 import { Chessboard } from "react-chessboard";
 import { authClient } from "@/lib/auth-client";
-import { Maximize2, Minimize2, History, Undo2 } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Maximize2, Minimize2, History, Undo2, Redo2, LogOut } from "lucide-react";
 
 import { customPieces } from "./chess/pieces";
 import {
@@ -20,6 +21,7 @@ import { MoveHistory } from "./chess/MoveHistory";
 import { GameResultCard } from "./chess/GameResultCard";
 
 export function CustomChessGame() {
+  const router = useRouter();
   const game = useMemo(() => new Chess(), []);
   const [fen, setFen] = useState(game.fen());
   const [selectedSquare, setSelectedSquare] = useState<Square | null>(null);
@@ -50,6 +52,13 @@ export function CustomChessGame() {
   const [isMobile, setIsMobile] = useState(false);
   const [showMobileHistory, setShowMobileHistory] = useState(false);
   const [confirmReset, setConfirmReset] = useState(false);
+  const [redoStack, setRedoStack] = useState<{ from: string; to: string; promotion?: string }[]>([]);
+
+  // Draw and Exit states
+  const [manualResult, setManualResult] = useState<"win" | "loss" | "draw" | null>(null);
+  const [manualReason, setManualReason] = useState<string | null>(null);
+  const [confirmExit, setConfirmExit] = useState(false);
+  const [drawOffer, setDrawOffer] = useState<"White" | "Black" | null>(null);
 
   // Track window resize for mobile optimizations
   useEffect(() => {
@@ -188,6 +197,7 @@ export function CustomChessGame() {
   // ---- Result detection ----
   // Returns result from the logged-in player's perspective, or null if game isn't over.
   function getResult(): "win" | "loss" | "draw" | null {
+    if (manualResult) return manualResult;
     if (!game.isGameOver()) return null;
 
     if (
@@ -209,10 +219,10 @@ export function CustomChessGame() {
     return "draw";
   }
 
-  async function saveMatchIfFinished() {
+  async function saveMatch(outcome?: "win" | "loss" | "draw") {
     if (savedRef.current) return; // already saved this game
-    const result = getResult();
-    if (!result) return; // game not over yet
+    const resultToSave = outcome || getResult();
+    if (!resultToSave) return; // game not over yet
     if (!session) return; // guest — nothing to save
 
     savedRef.current = true;
@@ -227,14 +237,14 @@ export function CustomChessGame() {
           botDifficulty: null,
           playerColor: loggedInPlayerColor,
           player2Name: playerTwo,
-          result,
+          result: resultToSave,
         }),
       });
 
       if (!res.ok) throw new Error("Failed to save match");
 
       const data = await res.json();
-      // NEW: capture rating change if backend returned it
+      // capture rating change if backend returned it
       if (data.match?.ratingBefore != null && data.match?.ratingAfter != null) {
         setRatingChange({ before: data.match.ratingBefore, after: data.match.ratingAfter });
       }
@@ -244,6 +254,44 @@ export function CustomChessGame() {
       savedRef.current = false; // allow retry
       setSaveStatus("error");
     }
+  }
+
+  function saveMatchIfFinished() {
+    saveMatch();
+  }
+
+  // ---- Exit & Draw Handlers ----
+  function handleExitGame() {
+    if (!confirmExit) {
+      setConfirmExit(true);
+      setTimeout(() => setConfirmExit(false), 4000);
+      return;
+    }
+    setConfirmExit(false);
+    if (typeof document !== "undefined" && document.fullscreenElement) {
+      document.exitFullscreen().catch(() => {});
+    }
+    resetGame();
+    router.push("/modes");
+  }
+
+  function handleOfferDraw() {
+    if (game.isGameOver() || manualResult) return;
+    setDrawOffer(turn);
+  }
+
+  function handleAcceptDraw() {
+    if (!drawOffer) return;
+    const offeringPlayer = drawOffer === "White" ? playerOne : playerTwo;
+    const acceptingPlayer = drawOffer === "White" ? playerTwo : playerOne;
+    setDrawOffer(null);
+    setManualResult("draw");
+    setManualReason(`Draw agreed mutually between ${offeringPlayer} and ${acceptingPlayer} 🤝`);
+    saveMatch("draw");
+  }
+
+  function handleDeclineDraw() {
+    setDrawOffer(null);
   }
 
   // ---- Game action handlers ----
@@ -256,6 +304,11 @@ export function CustomChessGame() {
     setSaveStatus("idle");
     setRatingChange(null);
     setConfirmReset(false);
+    setManualResult(null);
+    setManualReason(null);
+    setConfirmExit(false);
+    setDrawOffer(null);
+    setRedoStack([]);
     setLoggedInPlayerColor("white"); // reset color choice for next game
     if (session?.user?.name) setPlayerOne(session.user.name);
     try {
@@ -278,14 +331,37 @@ export function CustomChessGame() {
   }
 
   function handleUndo() {
-    if (game.history().length === 0) return;
+    if (game.history().length === 0 || !!result) return;
     const undoneMove = game.undo();
     if (undoneMove) {
+      setRedoStack((prev) => [
+        ...prev,
+        { from: undoneMove.from, to: undoneMove.to, promotion: undoneMove.promotion },
+      ]);
       setFen(game.fen());
       setTurn(game.turn() === "w" ? "White" : "Black");
       setSelectedSquare(null);
       savedRef.current = false;
       setSaveStatus("idle");
+      setManualResult(null);
+      setManualReason(null);
+    }
+  }
+
+  function handleRedo() {
+    if (redoStack.length === 0 || !!result) return;
+    const nextMove = redoStack[redoStack.length - 1];
+    try {
+      const redone = game.move(nextMove);
+      if (redone) {
+        setRedoStack((prev) => prev.slice(0, -1));
+        setFen(game.fen());
+        setTurn(game.turn() === "w" ? "White" : "Black");
+        setSelectedSquare(null);
+        saveMatchIfFinished();
+      }
+    } catch (err) {
+      console.warn("Failed to redo move:", err);
     }
   }
 
@@ -302,6 +378,7 @@ export function CustomChessGame() {
     try {
       const move = game.move({ from: sourceSquare, to: targetSquare, promotion: "q" });
       if (move === null) return false;
+      setRedoStack([]); // Clear redo history on new move
       setFen(game.fen());
       setTurn(game.turn() === "w" ? "White" : "Black");
       setSelectedSquare(null);
@@ -319,6 +396,7 @@ export function CustomChessGame() {
       try {
         const move = game.move({ from: selectedSquare, to: clickedSquare, promotion: "q" });
         if (move) {
+          setRedoStack([]); // Clear redo history on new move
           setFen(game.fen());
           setTurn(game.turn() === "w" ? "White" : "Black");
           setSelectedSquare(null);
@@ -413,6 +491,43 @@ export function CustomChessGame() {
     </div>
   );
 
+  // Draw Offer Confirmation Modal
+  const renderDrawOfferModal = () => {
+    if (!drawOffer) return null;
+    const offeringPlayer = drawOffer === "White" ? playerOne : playerTwo;
+    return (
+      <div
+        className="fixed inset-x-4 top-20 sm:top-24 max-w-sm mx-auto z-50 camp-card-canvas p-4 text-center animate-in zoom-in-95 duration-150"
+        style={{
+          boxShadow:
+            "0 12px 36px rgba(0,0,0,0.6), inset -3px -3px 8px rgba(0,0,0,0.1), inset 3px 3px 8px rgba(255,255,255,0.7)",
+        }}
+      >
+        <div className="text-2xl mb-1">🤝</div>
+        <h4 className="text-base font-black text-gray-900 mb-1">Draw Offered</h4>
+        <p className="text-xs text-gray-600 mb-3 font-medium">
+          <strong>{offeringPlayer}</strong> ({drawOffer}) offers a mutual draw. Do you accept?
+        </p>
+        <div className="flex items-center justify-center gap-2">
+          <button
+            type="button"
+            onClick={handleAcceptDraw}
+            className="camp-btn camp-btn-yellow text-xs py-1.5 px-4 font-black shadow-[1px_1px_0px_#000]"
+          >
+            Accept Draw
+          </button>
+          <button
+            type="button"
+            onClick={handleDeclineDraw}
+            className="camp-btn camp-btn-slate text-xs py-1.5 px-4 font-black shadow-[1px_1px_0px_#000]"
+          >
+            Decline
+          </button>
+        </div>
+      </div>
+    );
+  };
+
   // =========================================================================
   // 1. MOBILE FULLSCREEN VIEW
   // =========================================================================
@@ -420,7 +535,11 @@ export function CustomChessGame() {
     return (
       <div
         ref={gameWrapperRef}
-        className="fixed inset-0 z-50 bg-[#070b14] p-2 flex flex-col justify-between items-center w-full h-[100svh] overflow-hidden select-none touch-none"
+        className="fixed inset-0 z-50 bg-[#1c1208] p-2 flex flex-col justify-between items-center w-full h-[100svh] overflow-hidden select-none touch-none"
+        style={{
+          backgroundImage:
+            "radial-gradient(ellipse at center, rgba(67, 52, 30, 0.45) 0%, rgba(24, 14, 6, 0.95) 100%)",
+        }}
       >
         {/* Top: Opponent Info & Controls */}
         <div className="w-full flex items-center justify-between gap-2 px-1 py-1">
@@ -437,21 +556,21 @@ export function CustomChessGame() {
 
           <div className="flex items-center gap-1.5 shrink-0">
             <span
-              className={`camp-badge text-[10px] px-2 py-0.5 shadow-[1px_1px_0px_#000000] ${
+              className={`camp-badge text-[11px] px-2.5 py-1 ${
                 turn === "White" ? "camp-badge-yellow" : "camp-badge-slate"
               }`}
             >
               ♟ {turn}
             </span>
             {isCheck && (
-              <span className="camp-badge camp-badge-red text-[10px] px-1.5 py-0.5 animate-bounce shadow-[1px_1px_0px_#000000]">
+              <span className="camp-badge camp-badge-red text-[10px] px-2 py-0.5 animate-bounce">
                 Check!
               </span>
             )}
             <button
               type="button"
               onClick={toggleFullscreen}
-              className="camp-btn camp-btn-white text-xs p-1.5 font-black shadow-[1px_1px_0px_#000000] text-black hover:scale-105 active:scale-95 transition-all"
+              className="camp-btn camp-btn-white text-xs p-1.5 font-black text-stone-900 hover:scale-105 active:scale-95 transition-all"
               title="Exit Fullscreen"
             >
               <Minimize2 className="w-4 h-4" />
@@ -465,33 +584,74 @@ export function CustomChessGame() {
         </div>
 
         {/* Bottom: Player Info & Actions */}
-        <div className="w-full flex items-center justify-between gap-2 px-1 py-1">
-          <div className="min-w-0 flex-1">
-            <PlayerCard
-              color="white"
-              name={playerOne}
-              onNameChange={setPlayerOne}
-              isTurn={turn === "White"}
-              isCompact
-              inputId="you-mobile-fs"
-            />
+        <div className="w-full flex flex-col gap-1.5 px-1 py-1">
+          <div className="w-full flex items-center justify-between gap-2">
+            <div className="min-w-0 flex-1">
+              <PlayerCard
+                color="white"
+                name={playerOne}
+                onNameChange={setPlayerOne}
+                isTurn={turn === "White"}
+                isCompact
+                inputId="you-mobile-fs"
+              />
+            </div>
           </div>
 
-          <div className="flex items-center gap-1.5 shrink-0">
+          {/* Action Row on Mobile Fullscreen */}
+          <div className="flex items-center gap-1.5 justify-between">
             <button
               type="button"
               onClick={handleUndo}
-              disabled={moves.length === 0}
-              className="camp-btn camp-btn-slate text-[11px] py-1 px-2 font-bold shadow-[1px_1px_0px_#000000] flex items-center gap-1 disabled:opacity-40"
+              disabled={moves.length === 0 || !!result}
+              className="camp-btn camp-btn-slate text-xs py-1.5 px-2 font-black flex items-center gap-1 disabled:opacity-40"
               title="Undo move"
             >
               <Undo2 className="w-3.5 h-3.5" />
+              <span>Undo</span>
             </button>
 
             <button
               type="button"
+              onClick={handleRedo}
+              disabled={redoStack.length === 0 || !!result}
+              className="camp-btn camp-btn-slate text-xs py-1.5 px-2 font-black flex items-center gap-1 disabled:opacity-40"
+              title="Redo move"
+            >
+              <Redo2 className="w-3.5 h-3.5" />
+              <span>Redo</span>
+            </button>
+
+            {gameHasStarted && !result && (
+              <>
+                <button
+                  type="button"
+                  onClick={handleOfferDraw}
+                  className="camp-btn camp-btn-slate text-xs py-1.5 px-2.5 font-black flex items-center gap-1 hover:scale-105 active:scale-95 transition-all"
+                  title="Offer mutual draw"
+                >
+                  <span>🤝</span>
+                  <span>Draw</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleExitGame}
+                  className={`camp-btn text-xs py-1.5 px-2.5 font-black flex items-center gap-1 hover:scale-105 active:scale-95 transition-all ${
+                    confirmExit ? "camp-btn-red bg-rose-500 text-white animate-pulse" : "camp-btn-slate"
+                  }`}
+                  title="Exit game without win or loss"
+                >
+                  <LogOut className="w-3.5 h-3.5" />
+                  <span>{confirmExit ? "Confirm?" : "Exit"}</span>
+                </button>
+              </>
+            )}
+
+            <button
+              type="button"
               onClick={() => setShowMobileHistory((prev) => !prev)}
-              className="camp-btn camp-btn-slate text-[11px] py-1 px-2 font-bold shadow-[1px_1px_0px_#000000] flex items-center gap-1 hover:scale-105 active:scale-95 transition-all"
+              className="camp-btn camp-btn-slate text-xs py-1.5 px-2.5 font-black flex items-center gap-1 hover:scale-105 active:scale-95 transition-all"
               title="View moves"
             >
               <History className="w-3.5 h-3.5" />
@@ -501,7 +661,7 @@ export function CustomChessGame() {
             <button
               type="button"
               onClick={handleNewGame}
-              className={`camp-btn text-[11px] py-1 px-2.5 font-black shadow-[1px_1px_0px_#000000] flex items-center gap-1 hover:scale-105 active:scale-95 transition-all ${
+              className={`camp-btn text-xs py-1.5 px-3 font-black flex items-center gap-1 hover:scale-105 active:scale-95 transition-all ${
                 confirmReset ? "camp-btn-red bg-rose-500 text-white animate-pulse" : "camp-btn-yellow"
               }`}
             >
@@ -510,6 +670,8 @@ export function CustomChessGame() {
             </button>
           </div>
         </div>
+
+        {renderDrawOfferModal()}
 
         {showMobileHistory && (
           <MoveHistory
@@ -521,6 +683,7 @@ export function CustomChessGame() {
 
         <GameResultCard
           result={result}
+          reason={manualReason}
           session={session}
           saveStatus={saveStatus}
           onPlayAgain={resetGame}
@@ -538,54 +701,24 @@ export function CustomChessGame() {
     return (
       <div
         ref={gameWrapperRef}
-        className="fixed inset-0 z-50 bg-[#070b14] p-3 sm:p-5 md:p-6 flex flex-row items-center justify-center gap-6 lg:gap-8 overflow-y-auto w-full min-h-screen"
+        className="fixed inset-0 z-50 bg-[#191007] p-4 sm:p-6 lg:p-8 flex flex-row items-center justify-center gap-8 lg:gap-10 overflow-y-auto w-full min-h-screen"
+        style={{
+          backgroundImage:
+            "radial-gradient(circle at center, rgba(67, 52, 30, 0.4) 0%, rgba(20, 12, 5, 0.98) 100%)",
+        }}
       >
-        {/* Massive Board */}
-        {renderBoard({ width: "min(92vh, calc(100vw - 380px), 860px)", maxWidth: "100%" })}
-
-        {/* Side Dashboard */}
-        <div className="w-80 lg:w-96 flex flex-col gap-3 shrink-0 max-h-[92vh] justify-between">
-          {/* Status & Exit */}
-          <div className="flex items-center justify-between gap-2 px-1">
-            <div className="flex items-center gap-2">
-              <span
-                className={`camp-badge shadow-[2px_2px_0px_#000000] text-xs sm:text-sm px-3 py-1 ${
-                  turn === "White" ? "camp-badge-yellow" : "camp-badge-slate"
-                }`}
-              >
-                ♟ {turn} to move
-              </span>
-              {isCheck && (
-                <span className="camp-badge camp-badge-red shadow-[2px_2px_0px_#000000] text-xs px-2.5 py-1 animate-bounce">
-                  ⚠️ Check!
-                </span>
-              )}
-            </div>
-            <button
-              type="button"
-              onClick={toggleFullscreen}
-              title="Exit Fullscreen (Esc)"
-              className="camp-btn camp-btn-white text-xs py-1.5 px-3 font-black shadow-[2px_2px_0px_#000000] flex items-center gap-1.5 text-black hover:scale-105 active:scale-95 transition-all"
-            >
-              <Minimize2 className="w-3.5 h-3.5" />
-              <span>Exit</span>
-            </button>
-          </div>
-
-          {/* Color Picker (only before game starts) */}
-          {!gameHasStarted && (
-            <div className="px-1">{renderColorPicker()}</div>
-          )}
-
+        {/* Left: Massive Board */}
+        <div className="flex flex-col items-center gap-3">
           <PlayerCard
             color="black"
             name={playerTwo}
             onNameChange={setPlayerTwo}
             isTurn={turn === "Black"}
             inputId="opponent-fs"
+            className="max-w-[min(90vh,calc(100vw-420px),820px)]"
           />
 
-          <MoveHistory moves={moves} />
+          {renderBoard({ width: "min(84vh, calc(100vw - 420px), 820px)", maxWidth: "100%" })}
 
           <PlayerCard
             color="white"
@@ -593,15 +726,229 @@ export function CustomChessGame() {
             onNameChange={setPlayerOne}
             isTurn={turn === "White"}
             inputId="you-fs"
+            className="max-w-[min(90vh,calc(100vw-420px),820px)]"
           />
+        </div>
 
-          {/* Actions */}
-          <div className="flex items-center gap-2">
+        {/* Right: Side Dashboard */}
+        <div className="w-84 lg:w-96 flex flex-col gap-4 shrink-0 max-h-[92vh] justify-between">
+          {/* Status & Exit */}
+          <div className="rounded-2xl p-4 bg-[#261a0e]/95 border border-[#48331d]/60 flex flex-col gap-3"
+            style={{
+              boxShadow: "4px 4px 14px rgba(24,14,5,0.4), inset -3px -3px 8px rgba(24,14,5,0.3), inset 3px 3px 8px rgba(255,215,130,0.06)",
+            }}
+          >
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-[11px] font-black uppercase tracking-wider text-amber-200/60">
+                Theater Arena
+              </span>
+              <button
+                type="button"
+                onClick={toggleFullscreen}
+                title="Exit Fullscreen (Esc)"
+                className="camp-btn camp-btn-white text-xs py-1 px-3 font-black flex items-center gap-1.5 text-stone-950 hover:scale-105 active:scale-95 transition-all"
+              >
+                <Minimize2 className="w-3.5 h-3.5" />
+                <span>Exit Arena</span>
+              </button>
+            </div>
+
+            {/* Turn Banner */}
+            <div className="flex items-center justify-between gap-3 p-3 rounded-xl bg-[#181008] border border-amber-950">
+              <div className="flex items-center gap-2.5">
+                <div
+                  className={`w-9 h-9 rounded-xl flex items-center justify-center text-base font-black ${
+                    turn === "White"
+                      ? "bg-amber-300 text-amber-950"
+                      : "bg-[#100a05] text-amber-100 border border-amber-900/50"
+                  }`}
+                >
+                  {turn === "White" ? "♙" : "♟"}
+                </div>
+                <div>
+                  <div className="text-sm font-black text-amber-100">
+                    {turn}&apos;s Turn
+                  </div>
+                  <div className="text-[11px] font-medium text-amber-300/70">
+                    {turn === "White" ? playerOne : playerTwo} to move
+                  </div>
+                </div>
+              </div>
+
+              {isCheck && (
+                <span className="camp-badge camp-badge-red text-xs px-2.5 py-1 animate-bounce">
+                  ⚠️ Check!
+                </span>
+              )}
+            </div>
+
+            {/* Color Picker (only before game starts) */}
+            {!gameHasStarted && (
+              <div className="pt-1 border-t border-amber-950/60">
+                {renderColorPicker()}
+              </div>
+            )}
+          </div>
+
+          {/* Move Notation Log */}
+          <MoveHistory moves={moves} className="flex-1 min-h-[220px]" />
+
+          {/* Action Buttons Panel */}
+          <div
+            className="rounded-2xl p-3.5 bg-[#261a0e]/95 border border-[#48331d]/60 flex flex-col gap-2.5"
+            style={{
+              boxShadow: "4px 4px 14px rgba(24,14,5,0.4), inset -3px -3px 8px rgba(24,14,5,0.3), inset 3px 3px 8px rgba(255,215,130,0.06)",
+            }}
+          >
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={handleUndo}
+                disabled={moves.length === 0 || !!result}
+                className="camp-btn camp-btn-slate text-xs py-2.5 px-3 font-black flex items-center justify-center gap-1.5 disabled:opacity-40"
+                title="Undo last move"
+              >
+                <Undo2 className="w-3.5 h-3.5" />
+                <span>Undo Move</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={handleRedo}
+                disabled={redoStack.length === 0 || !!result}
+                className="camp-btn camp-btn-slate text-xs py-2.5 px-3 font-black flex items-center justify-center gap-1.5 disabled:opacity-40"
+                title="Redo move"
+              >
+                <Redo2 className="w-3.5 h-3.5" />
+                <span>Redo Move</span>
+              </button>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={handleOfferDraw}
+                disabled={!gameHasStarted || !!result}
+                className="camp-btn camp-btn-slate text-xs py-2.5 px-3 font-black flex items-center justify-center gap-1.5 disabled:opacity-40"
+                title="Offer mutual draw"
+              >
+                <span>🤝</span>
+                <span>Offer Draw</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={handleExitGame}
+                disabled={!gameHasStarted || !!result}
+                className={`camp-btn text-xs py-2.5 px-3 font-black flex items-center justify-center gap-1.5 disabled:opacity-40 transition-all ${
+                  confirmExit ? "camp-btn-red bg-rose-500 text-white animate-pulse" : "camp-btn-slate"
+                }`}
+                title="Exit match without win or loss"
+              >
+                <LogOut className="w-3.5 h-3.5" />
+                <span>{confirmExit ? "Confirm Exit?" : "Exit Game"}</span>
+              </button>
+            </div>
+
+            <button
+              type="button"
+              onClick={handleNewGame}
+              className={`camp-btn w-full text-xs py-2.5 px-3 font-black flex items-center justify-center gap-1.5 transition-all ${
+                confirmReset ? "camp-btn-red bg-rose-500 text-white animate-pulse" : "camp-btn-yellow"
+              }`}
+            >
+              <span>↺</span>
+              <span>{confirmReset ? "Reset?" : "New Game"}</span>
+            </button>
+          </div>
+
+          <GameResultCard
+            result={result}
+            reason={manualReason}
+            session={session}
+            saveStatus={saveStatus}
+            onPlayAgain={resetGame}
+            ratingChange={ratingChange}
+          />
+        </div>
+
+        {renderDrawOfferModal()}
+      </div>
+    );
+  }
+
+  // =========================================================================
+  // 3. RESPONSIVE PLAY ARENA (Desktop 2-Column + Mobile Single-Column)
+  // =========================================================================
+  return (
+    <div
+      ref={gameWrapperRef}
+      className="w-full flex flex-col lg:flex-row items-center lg:items-start justify-center gap-6 lg:gap-8 transition-all"
+    >
+      {/* LEFT COLUMN: Chess Board Arena */}
+      <div className="flex flex-col items-center gap-2.5 w-full max-w-[min(98vw,560px)] shrink-0">
+        {/* Opponent (Black) Card */}
+        <PlayerCard
+          color="black"
+          name={playerTwo}
+          onNameChange={setPlayerTwo}
+          isTurn={turn === "Black"}
+          inputId="opponent"
+        />
+
+        {/* Board Tray */}
+        {renderBoard({ maxWidth: "min(98vw, 560px)" })}
+
+        {/* Player (White / You) Card */}
+        <PlayerCard
+          color="white"
+          name={playerOne}
+          onNameChange={setPlayerOne}
+          isTurn={turn === "White"}
+          inputId="you"
+        />
+
+        {/* Mobile-Only Controls Bar (hidden on desktop lg) */}
+        <div className="w-full lg:hidden flex flex-col gap-2.5 pt-1">
+          {/* Turn status + Check + Moves drawer trigger */}
+          <div className="w-full flex items-center justify-between gap-2 px-1">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span
+                className={`camp-badge text-xs px-3 py-1 ${
+                  turn === "White" ? "camp-badge-yellow" : "camp-badge-slate"
+                }`}
+              >
+                ♟ {turn} to move
+              </span>
+              {isCheck && (
+                <span className="camp-badge camp-badge-red text-xs px-2.5 py-1 animate-bounce">
+                  ⚠️ Check!
+                </span>
+              )}
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setShowMobileHistory(true)}
+              className="camp-btn camp-btn-slate text-xs py-1.5 px-3 font-black flex items-center gap-1.5"
+            >
+              <History className="w-3.5 h-3.5" />
+              <span>Moves ({moves.length})</span>
+            </button>
+          </div>
+
+          {/* Color picker on mobile before game starts */}
+          {!gameHasStarted && (
+            <div className="py-1">{renderColorPicker()}</div>
+          )}
+
+          {/* Mobile Buttons Grid */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
             <button
               type="button"
               onClick={handleUndo}
-              disabled={moves.length === 0}
-              className="camp-btn camp-btn-slate text-xs py-2 px-3.5 font-black shadow-[2px_2px_0px_#000000] flex items-center gap-1.5 disabled:opacity-40"
+              disabled={moves.length === 0 || !!result}
+              className="camp-btn camp-btn-slate text-xs py-2 px-3 font-black flex items-center justify-center gap-1.5 disabled:opacity-40"
               title="Undo last move"
             >
               <Undo2 className="w-3.5 h-3.5" />
@@ -610,121 +957,257 @@ export function CustomChessGame() {
 
             <button
               type="button"
+              onClick={handleRedo}
+              disabled={redoStack.length === 0 || !!result}
+              className="camp-btn camp-btn-slate text-xs py-2 px-3 font-black flex items-center justify-center gap-1.5 disabled:opacity-40"
+              title="Redo move"
+            >
+              <Redo2 className="w-3.5 h-3.5" />
+              <span>Redo</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={handleOfferDraw}
+              disabled={!gameHasStarted || !!result}
+              className="camp-btn camp-btn-slate text-xs py-2 px-3 font-black flex items-center justify-center gap-1.5 disabled:opacity-40"
+              title="Offer mutual draw"
+            >
+              <span>🤝</span>
+              <span>Draw</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={handleExitGame}
+              disabled={!gameHasStarted || !!result}
+              className={`camp-btn text-xs py-2 px-3 font-black flex items-center justify-center gap-1.5 disabled:opacity-40 transition-all ${
+                confirmExit ? "camp-btn-red bg-rose-500 text-white animate-pulse" : "camp-btn-slate"
+              }`}
+              title="Exit match without win or loss"
+            >
+              <LogOut className="w-3.5 h-3.5" />
+              <span>{confirmExit ? "Confirm?" : "Exit"}</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={toggleFullscreen}
+              className="camp-btn camp-btn-white text-xs py-2 px-3 font-black flex items-center justify-center gap-1.5 text-stone-900"
+              title="Full Arena View"
+            >
+              <Maximize2 className="w-3.5 h-3.5" />
+              <span>Fullscreen</span>
+            </button>
+
+            <button
+              type="button"
               onClick={handleNewGame}
-              className={`camp-btn flex-1 text-xs py-2 px-3 font-black shadow-[2px_2px_0px_#000000] flex items-center justify-center gap-1.5 hover:scale-[1.02] active:scale-95 transition-all ${
+              className={`camp-btn text-xs py-2 px-3 font-black flex items-center justify-center gap-1.5 ${
                 confirmReset ? "camp-btn-red bg-rose-500 text-white animate-pulse" : "camp-btn-yellow"
               }`}
             >
               <span>↺</span>
-              <span>{confirmReset ? "Confirm Reset Game?" : "New Game"}</span>
+              <span>{confirmReset ? "Reset?" : "New Game"}</span>
             </button>
           </div>
-
-          <GameResultCard
-            result={result}
-            session={session}
-            saveStatus={saveStatus}
-            onPlayAgain={resetGame}
-            ratingChange={ratingChange}
-          />
         </div>
-      </div>
-    );
-  }
 
-  // =========================================================================
-  // 3. NORMAL COMPACT VIEW (Mobile & Desktop, Max 520px)
-  // =========================================================================
-  return (
-    <div
-      ref={gameWrapperRef}
-      className="flex flex-col items-center gap-2.5 sm:gap-3 w-full max-w-[min(98vw,520px)] mx-auto transition-all"
-    >
-      {/* Top Status and Actions Bar */}
-      <div className="w-full flex items-center justify-between gap-1.5 sm:gap-2 px-1">
-        <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
-          <span
-            className={`camp-badge shadow-[2px_2px_0px_#000000] text-[11px] sm:text-sm px-2.5 sm:px-4 py-1 ${
-              turn === "White" ? "camp-badge-yellow" : "camp-badge-slate"
-            }`}
-          >
-            ♟ {turn} to move
-          </span>
-          {isCheck && (
-            <span className="camp-badge camp-badge-red shadow-[2px_2px_0px_#000000] text-[11px] sm:text-xs px-2 py-0.5 sm:px-2.5 sm:py-1 animate-bounce">
-              ⚠️ Check!
+        {/* Mobile Drawer */}
+        {showMobileHistory && (
+          <MoveHistory
+            moves={moves}
+            isMobileDrawer
+            onCloseDrawer={() => setShowMobileHistory(false)}
+          />
+        )}
+      </div>
+
+      {/* RIGHT COLUMN: Desktop Game Dashboard & Console (Visible on lg and up) */}
+      <div className="hidden lg:flex flex-col gap-3.5 w-80 xl:w-96 shrink-0">
+        {/* 1. Turn & Match Status Card */}
+        <div
+          className="rounded-2xl p-4 bg-[#261a0e]/95 border border-[#48331d]/60 flex flex-col gap-3"
+          style={{
+            boxShadow:
+              "4px 4px 14px rgba(24,14,5,0.4), inset -3px -3px 8px rgba(24,14,5,0.3), inset 3px 3px 8px rgba(255,215,130,0.06)",
+          }}
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-black uppercase tracking-wider text-amber-200/60">
+              Match Console
             </span>
+            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-950/60 border border-amber-900/40 text-amber-300">
+              Local Pass &amp; Play
+            </span>
+          </div>
+
+          {/* Active Turn Banner */}
+          <div className="flex items-center justify-between gap-3 p-3 rounded-xl bg-[#181008] border border-amber-950">
+            <div className="flex items-center gap-2.5">
+              <div
+                className={`w-9 h-9 rounded-xl flex items-center justify-center text-base font-black ${
+                  turn === "White"
+                    ? "bg-amber-300 text-amber-950"
+                    : "bg-[#100a05] text-amber-100 border border-amber-900/50"
+                }`}
+                style={{
+                  boxShadow:
+                    turn === "White"
+                      ? "2px 2px 6px rgba(0,0,0,0.3), inset -2px -2px 4px rgba(180,120,30,0.3), inset 2px 2px 4px rgba(255,255,255,0.7)"
+                      : "2px 2px 6px rgba(0,0,0,0.4), inset -2px -2px 4px rgba(0,0,0,0.5), inset 2px 2px 4px rgba(255,210,130,0.15)",
+                }}
+              >
+                {turn === "White" ? "♙" : "♟"}
+              </div>
+              <div>
+                <div className="text-sm font-black text-amber-100">
+                  {turn}&apos;s Turn
+                </div>
+                <div className="text-[11px] font-medium text-amber-300/70">
+                  {turn === "White" ? playerOne : playerTwo} to move
+                </div>
+              </div>
+            </div>
+
+            {isCheck && (
+              <span className="camp-badge camp-badge-red text-xs px-2.5 py-1 animate-bounce">
+                ⚠️ Check!
+              </span>
+            )}
+          </div>
+
+          {/* Pre-game Color Choice */}
+          {!gameHasStarted && (
+            <div className="pt-2 border-t border-amber-950/60">
+              {renderColorPicker()}
+            </div>
           )}
         </div>
 
-        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-          <button
-            type="button"
-            onClick={handleUndo}
-            disabled={moves.length === 0}
-            title="Undo move"
-            className="camp-btn camp-btn-slate text-xs py-1 px-2 sm:py-1.5 sm:px-2.5 font-black shadow-[2px_2px_0px_#000000] flex items-center gap-1 hover:scale-105 active:scale-95 transition-all disabled:opacity-40"
-          >
-            <Undo2 className="w-3.5 h-3.5" />
-            <span className="hidden xs:inline">Undo</span>
-          </button>
+        {/* 2. Live Move History Notation Log */}
+        <MoveHistory moves={moves} className="min-h-[220px] max-h-[300px]" />
 
-          <button
-            type="button"
-            onClick={toggleFullscreen}
-            title="Play Fullscreen"
-            className="camp-btn camp-btn-white text-xs py-1 px-2 sm:py-1.5 sm:px-2.5 font-black shadow-[2px_2px_0px_#000000] flex items-center gap-1 sm:gap-1.5 hover:scale-105 active:scale-95 transition-all text-black"
-          >
-            <Maximize2 className="w-3.5 h-3.5" />
-            <span className="hidden xs:inline">Fullscreen</span>
-          </button>
+        {/* 3. Game Control Actions Panel */}
+        <div
+          className="rounded-2xl p-4 bg-[#261a0e]/95 border border-[#48331d]/60 flex flex-col gap-3"
+          style={{
+            boxShadow:
+              "4px 4px 14px rgba(24,14,5,0.4), inset -3px -3px 8px rgba(24,14,5,0.3), inset 3px 3px 8px rgba(255,215,130,0.06)",
+          }}
+        >
+          <div className="text-[11px] font-black uppercase tracking-wider text-amber-200/60 px-0.5">
+            Actions
+          </div>
 
-          <button
-            type="button"
-            onClick={handleNewGame}
-            title="Start a new game (resets board)"
-            className={`camp-btn text-xs py-1 px-2.5 sm:py-1.5 sm:px-3 font-black shadow-[2px_2px_0px_#000000] flex items-center gap-1 sm:gap-1.5 hover:scale-105 active:scale-95 transition-all ${
-              confirmReset ? "camp-btn-red bg-rose-500 text-white animate-pulse" : "camp-btn-yellow"
-            }`}
-          >
-            <span>↺</span>
-            <span>{confirmReset ? "Reset?" : "New"}</span>
-          </button>
+          <div className="flex flex-col gap-2">
+            {/* Row 1: Undo and Redo */}
+            <div className="grid grid-cols-2 gap-2.5">
+              <button
+                type="button"
+                onClick={handleUndo}
+                disabled={moves.length === 0 || !!result}
+                className="camp-btn camp-btn-slate text-xs py-2.5 px-3 font-black flex items-center justify-center gap-2 disabled:opacity-40"
+                title="Undo last move"
+              >
+                <Undo2 className="w-4 h-4" />
+                <span>Undo Move</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={handleRedo}
+                disabled={redoStack.length === 0 || !!result}
+                className="camp-btn camp-btn-slate text-xs py-2.5 px-3 font-black flex items-center justify-center gap-2 disabled:opacity-40"
+                title="Redo move"
+              >
+                <Redo2 className="w-4 h-4" />
+                <span>Redo Move</span>
+              </button>
+            </div>
+
+            {/* Row 2: Draw and Resign */}
+            <div className="grid grid-cols-2 gap-2.5">
+              <button
+                type="button"
+                onClick={handleOfferDraw}
+                disabled={!gameHasStarted || !!result}
+                className="camp-btn camp-btn-slate text-xs py-2.5 px-3 font-black flex items-center justify-center gap-2 disabled:opacity-40"
+                title="Offer a mutual draw to opponent"
+              >
+                <span>🤝</span>
+                <span>Offer Draw</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={handleExitGame}
+                disabled={!gameHasStarted || !!result}
+                className={`camp-btn text-xs py-2.5 px-3 font-black flex items-center justify-center gap-2 disabled:opacity-40 transition-all ${
+                  confirmExit
+                    ? "camp-btn-red bg-rose-500 text-white animate-pulse"
+                    : "camp-btn-slate"
+                }`}
+                title="Exit match without win or loss"
+              >
+                <LogOut className="w-4 h-4" />
+                <span>{confirmExit ? "Confirm Exit?" : "Exit Game"}</span>
+              </button>
+            </div>
+
+            {/* Row 3: Fullscreen and New Game */}
+            <div className="grid grid-cols-2 gap-2.5">
+              <button
+                type="button"
+                onClick={toggleFullscreen}
+                className="camp-btn camp-btn-white text-xs py-2.5 px-3 font-black flex items-center justify-center gap-2 text-stone-900"
+                title="Play in Theater Fullscreen Arena"
+              >
+                <Maximize2 className="w-4 h-4" />
+                <span>Fullscreen</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={handleNewGame}
+                className={`camp-btn text-xs py-2.5 px-3 font-black flex items-center justify-center gap-2 transition-all ${
+                  confirmReset
+                    ? "camp-btn-red bg-rose-500 text-white animate-pulse"
+                    : "camp-btn-yellow"
+                }`}
+              >
+                <span>↺</span>
+                <span>{confirmReset ? "Reset Board?" : "New Game"}</span>
+              </button>
+            </div>
+          </div>
         </div>
+
+        {/* 4. Match Outcome Result Card (Desktop) */}
+        <GameResultCard
+          result={result}
+          reason={manualReason}
+          session={session}
+          saveStatus={saveStatus}
+          onPlayAgain={resetGame}
+          ratingChange={ratingChange}
+        />
       </div>
 
-      {/* NEW: Color picker (before first move only) */}
-      {!gameHasStarted && renderColorPicker()}
+      {/* Draw Offer Modal */}
+      {renderDrawOfferModal()}
 
-      {/* Result notification (with rating change) */}
-      <GameResultCard
-        result={result}
-        session={session}
-        saveStatus={saveStatus}
-        onPlayAgain={resetGame}
-        ratingChange={ratingChange}
-      />
-
-      {/* Opponent (Black) Card */}
-      <PlayerCard
-        color="black"
-        name={playerTwo}
-        onNameChange={setPlayerTwo}
-        isTurn={turn === "Black"}
-        inputId="opponent"
-      />
-
-      {/* Board */}
-      {renderBoard({ maxWidth: "min(98vw, 520px)" })}
-
-      {/* Player (White / You) Card */}
-      <PlayerCard
-        color="white"
-        name={playerOne}
-        onNameChange={setPlayerOne}
-        isTurn={turn === "White"}
-        inputId="you"
-      />
+      {/* Game Result Card on Mobile (< lg) */}
+      <div className="w-full max-w-[min(98vw,560px)] lg:hidden">
+        <GameResultCard
+          result={result}
+          reason={manualReason}
+          session={session}
+          saveStatus={saveStatus}
+          onPlayAgain={resetGame}
+          ratingChange={ratingChange}
+        />
+      </div>
     </div>
   );
 }
