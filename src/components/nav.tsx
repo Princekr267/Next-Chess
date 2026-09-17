@@ -155,9 +155,11 @@ export function Nav() {
     if (session) {
       return (
         <div className={`flex ${layout === "col" ? "flex-col gap-2 w-full" : "flex-row items-center gap-2"}`}>
-          {/* User pill */}
-          <div
-            className="flex items-center gap-2 px-2.5 py-1 rounded-full"
+          {/* User pill linking to /profile */}
+          <Link
+            href="/profile"
+            onClick={() => setIsOpen(false)}
+            className="flex items-center gap-2 px-2.5 py-1 rounded-full hover:scale-[1.02] active:scale-95 transition-transform"
             style={{
               background: "linear-gradient(145deg, #334155 0%, #1e293b 100%)",
               boxShadow:
@@ -176,7 +178,7 @@ export function Nav() {
             <span className="text-xs font-black text-amber-200 max-w-[90px] truncate">
               {session.user.name}
             </span>
-          </div>
+          </Link>
           <button
             type="button"
             disabled={signingOut}
@@ -355,14 +357,9 @@ export function Nav() {
   );
 
   return (
-    <header className="fixed top-0 left-0 right-0 z-50 px-3 py-3 flex items-start justify-between pointer-events-none">
-      {/* Desktop nav — left side */}
+    <header className="fixed top-0 left-0 right-0 z-50 px-3 py-3 flex items-start justify-center pointer-events-none">
       <div className="pointer-events-auto">
         <DesktopNav />
-      </div>
-
-      {/* Mobile/tablet nav — right side pill */}
-      <div className="pointer-events-auto ml-auto">
         <MobileNav />
       </div>
     </header>
