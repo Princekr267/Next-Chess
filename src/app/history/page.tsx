@@ -35,9 +35,10 @@ function ColorPip({ color }: { color: Match["playerColor"] }) {
   return (
     <span className="flex items-center gap-1.5 text-xs font-bold text-slate-300">
       <span
-        className={`w-4 h-4 rounded-full border-2 border-black shadow-[1px_1px_0px_#000] ${
-          color === "white" ? "bg-amber-200" : "bg-slate-800"
+        className={`w-4 h-4 rounded-full ${
+          color === "white" ? "bg-amber-200" : "bg-slate-700"
         }`}
+        style={{ boxShadow: "1px 2px 4px rgba(28,18,6,0.3), inset -1px -1px 2px rgba(28,18,6,0.2), inset 1px 1px 2px rgba(255,215,140,0.35)" }}
       />
       {color === "white" ? "White" : "Black"}
     </span>
@@ -87,8 +88,15 @@ export default function HistoryPage() {
       try {
         const { data } = await axios.get("/api/matches");
         setMatches(data.matches ?? []);
-      } catch (err: any) {
-        if (err?.response?.status === 401) {
+      } catch (err: unknown) {
+        const status =
+          typeof err === "object" &&
+          err !== null &&
+          "response" in err &&
+          typeof (err as { response?: { status?: number } }).response?.status === "number"
+            ? (err as { response: { status: number } }).response.status
+            : null;
+        if (status === 401) {
           setError("not-signed-in");
         } else {
           setError("failed");
@@ -132,7 +140,9 @@ export default function HistoryPage() {
       {/* ── Loading ── */}
       {loading && (
         <div className="flex flex-col items-center justify-center py-20 gap-4">
-          <div className="w-12 h-12 rounded-2xl bg-amber-400 border-[2.5px] border-black shadow-[3px_3px_0px_#000] flex items-center justify-center text-2xl animate-bounce">
+          <div className="w-12 h-12 rounded-2xl bg-amber-200 flex items-center justify-center text-2xl animate-bounce"
+            style={{ boxShadow: "4px 4px 10px rgba(28,18,6,0.4), inset -3px -3px 7px rgba(28,18,6,0.25), inset 3px 3px 7px rgba(255,215,140,0.5)" }}
+          >
             ♟
           </div>
           <span className="text-slate-400 text-sm font-bold uppercase tracking-wider animate-pulse">
@@ -184,7 +194,7 @@ export default function HistoryPage() {
               ].map((stat) => (
                 <div
                   key={stat.label}
-                  className="camp-card-dark rounded-2xl border-[2px] border-black shadow-[3px_3px_0px_#000] px-4 py-3 text-center"
+                  className="camp-card-dark rounded-2xl px-4 py-3 text-center"
                 >
                   <div className={`text-2xl font-black ${stat.cls}`}>{stat.value}</div>
                   <div className="text-[11px] font-bold uppercase tracking-wider text-slate-400 mt-0.5">
@@ -200,9 +210,12 @@ export default function HistoryPage() {
             <motion.div
               initial={{ opacity: 0, x: -8 }}
               animate={{ opacity: 1, x: 0 }}
-              className="flex items-center gap-3 mb-6 px-4 py-3 rounded-2xl bg-slate-800/70 border-[2px] border-slate-700 shadow-[3px_3px_0px_#000]"
+              className="flex items-center gap-3 mb-6 px-4 py-3 rounded-2xl bg-amber-950/40"
+              style={{ boxShadow: "4px 4px 12px rgba(28,18,6,0.45), inset -3px -3px 8px rgba(28,18,6,0.3), inset 3px 3px 8px rgba(255,210,130,0.08)" }}
             >
-              <span className="w-9 h-9 rounded-xl bg-amber-400 border-[2px] border-black shadow-[2px_2px_0px_#000] flex items-center justify-center text-black font-black text-sm shrink-0">
+              <span className="w-9 h-9 rounded-xl bg-amber-200 flex items-center justify-center text-amber-900 font-black text-sm shrink-0"
+                style={{ boxShadow: "3px 3px 8px rgba(28,18,6,0.4), inset -2px -2px 5px rgba(28,18,6,0.25), inset 2px 2px 5px rgba(255,215,140,0.5)" }}
+              >
                 ⭐
               </span>
               <div>
@@ -240,25 +253,27 @@ export default function HistoryPage() {
                   initial={{ opacity: 0, y: 12 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: i * 0.04 }}
-                  className={`relative flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-2xl border-[2.5px] border-black px-4 py-3.5 shadow-[3px_3px_0px_#000] transition-transform hover:-translate-y-0.5 ${
+                  className={`relative flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-2xl px-4 py-3.5 transition-transform hover:-translate-y-0.5 ${
                     match.result === "win"
-                      ? "bg-emerald-950/40 border-emerald-800/70"
+                      ? "bg-emerald-950/40"
                       : match.result === "loss"
-                      ? "bg-rose-950/40 border-rose-900/60"
+                      ? "bg-rose-950/40"
                       : "bg-slate-800/60"
                   }`}
+                  style={{ boxShadow: "4px 4px 12px rgba(28,18,6,0.45), inset -3px -3px 8px rgba(28,18,6,0.3), inset 3px 3px 8px rgba(255,210,130,0.06)" }}
                 >
                   {/* Left: result + opponent */}
                   <div className="flex items-center gap-3 min-w-0">
                     {/* Result icon */}
                     <div
-                      className={`w-10 h-10 shrink-0 rounded-xl border-[2px] border-black shadow-[2px_2px_0px_#000] flex items-center justify-center text-xl ${
+                      className={`w-10 h-10 shrink-0 rounded-xl flex items-center justify-center text-xl ${
                         match.result === "win"
                           ? "bg-emerald-400"
                           : match.result === "loss"
                           ? "bg-rose-500"
-                          : "bg-amber-400"
+                          : "bg-amber-300"
                       }`}
+                      style={{ boxShadow: "3px 3px 8px rgba(28,18,6,0.4), inset -2px -2px 5px rgba(28,18,6,0.25), inset 2px 2px 5px rgba(255,215,140,0.4)" }}
                     >
                       {match.result === "win" ? "🏆" : match.result === "loss" ? "💀" : "🤝"}
                     </div>

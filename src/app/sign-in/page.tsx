@@ -40,7 +40,7 @@ export default function SignInPage() {
         initial={{ opacity: 0, scale: 0.92, y: 15 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         transition={{ type: "spring", stiffness: 350, damping: 25 }}
-        className="w-full max-w-md bg-[#fffdfa] border-[3px] border-black shadow-[8px_8px_0px_#000000] rounded-2xl p-7 sm:p-9 text-[#0f172a] relative"
+        className="w-full max-w-md camp-card-canvas p-7 sm:p-9 relative"
       >
         {/* Playful Floating Badge */}
         <div className="absolute -top-5 left-1/2 -translate-x-1/2">
@@ -51,7 +51,9 @@ export default function SignInPage() {
 
         {/* Header */}
         <div className="text-center mt-2 mb-7">
-          <div className="w-14 h-14 rounded-2xl bg-amber-400 border-[2.5px] border-black shadow-[3px_3px_0px_#000000] flex items-center justify-center mx-auto mb-3 text-2xl font-black">
+          <div className="w-14 h-14 rounded-2xl bg-amber-200 flex items-center justify-center mx-auto mb-3 text-2xl font-black"
+            style={{ boxShadow: "4px 4px 10px rgba(28,18,6,0.4), inset -3px -3px 7px rgba(28,18,6,0.25), inset 3px 3px 7px rgba(255,215,140,0.5)" }}
+          >
             👑
           </div>
           <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-gray-950">
@@ -90,7 +92,8 @@ export default function SignInPage() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
-              className="w-full px-4 py-3 rounded-xl border-2 border-black bg-white text-gray-900 font-semibold placeholder:text-gray-400 text-sm focus:outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-400/50 shadow-[2px_2px_0px_#000000] transition-all"
+              className="w-full px-4 py-3 rounded-2xl bg-white/80 text-gray-900 font-semibold placeholder:text-gray-400 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400/50 transition-all"
+              style={{ boxShadow: "inset 3px 3px 8px rgba(28,18,6,0.2), inset -3px -3px 8px rgba(255,220,160,0.6)" }}
             />
           </div>
 
@@ -111,7 +114,8 @@ export default function SignInPage() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
-                className="w-full px-4 py-3 rounded-xl border-2 border-black bg-white text-gray-900 font-semibold placeholder:text-gray-400 text-sm focus:outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-400/50 shadow-[2px_2px_0px_#000000] transition-all pr-12"
+                className="w-full px-4 py-3 rounded-2xl bg-white/80 text-gray-900 font-semibold placeholder:text-gray-400 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400/50 transition-all pr-12"
+                style={{ boxShadow: "inset 3px 3px 8px rgba(28,18,6,0.2), inset -3px -3px 8px rgba(255,220,160,0.6)" }}
               />
               <button
                 type="button"

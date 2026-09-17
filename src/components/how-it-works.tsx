@@ -42,7 +42,7 @@ export function HowItWorks() {
     <section className="py-20 px-4 w-full">
       <div className="mx-auto max-w-5xl">
         <div className="text-center mb-16">
-          <span className="camp-badge camp-badge-yellow mb-3 shadow-[2px_2px_0px_#000000]">
+          <span className="camp-badge camp-badge-yellow mb-3">
             ♟ WELCOME TO NEXT-CHESS
           </span>
           <motion.h2
@@ -71,10 +71,12 @@ export function HowItWorks() {
             >
               <div>
                 <div className="flex items-center justify-between mb-4">
-                  <span className="w-10 h-10 rounded-xl bg-amber-400 text-black border-2 border-black shadow-[2px_2px_0px_#000000] font-black flex items-center justify-center text-base tracking-wider">
+                  <span className="w-10 h-10 rounded-2xl bg-amber-200 text-amber-900 font-black flex items-center justify-center text-base tracking-wider"
+                    style={{ boxShadow: "3px 3px 9px rgba(28,18,6,0.4), inset -2px -2px 5px rgba(28,18,6,0.2), inset 2px 2px 5px rgba(255,215,140,0.5)" }}
+                  >
                     {step.number}
                   </span>
-                  <span className={`text-[11px] font-black tracking-wider uppercase border-2 border-black px-2.5 py-0.5 rounded-full shadow-[1.5px_1.5px_0px_#000000] ${step.badgeColor}`}>
+                  <span className={`camp-badge text-[11px] ${step.badgeColor}`}>
                     {step.badge}
                   </span>
                 </div>
@@ -86,7 +88,7 @@ export function HowItWorks() {
                 </p>
               </div>
 
-              <div className="mt-6 pt-3 border-t-2 border-black/10 flex items-center gap-1.5 text-xs font-black text-amber-700">
+              <div className="mt-6 pt-3 border-t border-amber-900/20 flex items-center gap-1.5 text-xs font-black text-amber-800">
                 <span>TACTICAL MOVE</span>
                 <span className="text-amber-500 text-base">➔</span>
               </div>
@@ -103,7 +105,7 @@ export function HowItWorks() {
         >
           <button
             type="button"
-            className="camp-btn camp-btn-yellow text-base px-8 py-3.5 font-black shadow-[4px_4px_0px_#000000]"
+            className="camp-btn camp-btn-yellow text-base px-8 py-3.5 font-black"
             onClick={handlePlayClick}
             disabled={isPending}
           >

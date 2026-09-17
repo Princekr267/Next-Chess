@@ -25,7 +25,8 @@ export function MoveHistory({
 
   if (isMobileDrawer) {
     return (
-      <div className="absolute inset-x-2 bottom-14 z-50 rounded-2xl bg-slate-900/95 border-[2.5px] border-black p-3.5 shadow-[0_8px_30px_rgba(0,0,0,0.85)] backdrop-blur-md max-h-[50vh] flex flex-col animate-in fade-in slide-in-from-bottom duration-200">
+      <div className="absolute inset-x-2 bottom-14 z-50 rounded-2xl bg-slate-900/95 p-3.5 backdrop-blur-md max-h-[50vh] flex flex-col animate-in fade-in slide-in-from-bottom duration-200"
+        style={{ boxShadow: "0 8px 30px rgba(20,10,3,0.65), inset -4px -4px 10px rgba(28,18,6,0.4), inset 4px 4px 10px rgba(255,210,130,0.05)" }}>
         <div className="flex items-center justify-between pb-2 mb-2 border-b border-slate-800">
           <span className="text-xs font-black uppercase tracking-wider text-amber-300 flex items-center gap-1.5">
             <History className="w-3.5 h-3.5" /> Match Moves ({moves.length})
@@ -66,7 +67,8 @@ export function MoveHistory({
 
   return (
     <div
-      className={`w-full rounded-xl bg-slate-900/80 border-[2px] border-black p-3 shadow-[3px_3px_0px_#000000] flex flex-col flex-1 min-h-[140px] max-h-[260px] ${className}`}
+      className={`w-full rounded-2xl bg-slate-900/80 p-3 flex flex-col flex-1 min-h-[140px] max-h-[260px] ${className}`}
+      style={{ boxShadow: "4px 4px 12px rgba(28,18,6,0.45), inset -3px -3px 8px rgba(28,18,6,0.3), inset 3px 3px 8px rgba(255,210,130,0.07)" }}
     >
       <div className="flex items-center justify-between pb-2 mb-2 border-b border-slate-800 text-[11px] font-black uppercase tracking-wider text-slate-400">
         <span>Match History</span>

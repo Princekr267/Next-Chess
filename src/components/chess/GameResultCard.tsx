@@ -31,7 +31,7 @@ export function GameResultCard({
   if (isOverlay) {
     return (
       <div
-        className={`absolute inset-x-4 top-1/2 -translate-y-1/2 z-50 camp-card-canvas p-4 text-sm font-black text-center shadow-[6px_6px_0px_#000000] border-[2.5px] border-black animate-in zoom-in-95 duration-200 ${className}`}
+        className={`absolute inset-x-4 top-1/2 -translate-y-1/2 z-50 camp-card-canvas p-4 text-sm font-black text-center animate-in zoom-in-95 duration-200 ${className}`}
       >
         <div className="text-lg font-black mb-1">{resultText}</div>
         {!session && (
@@ -61,7 +61,7 @@ export function GameResultCard({
         <button
           type="button"
           onClick={onPlayAgain}
-          className="camp-btn camp-btn-ember text-xs py-2 px-5 font-black shadow-[2px_2px_0px_#000000]"
+          className="camp-btn camp-btn-ember text-xs py-2 px-5 font-black"
         >
           Play Again
         </button>
@@ -71,7 +71,7 @@ export function GameResultCard({
 
   return (
     <div
-      className={`camp-card-canvas w-full px-4 py-3 text-sm font-black text-center shadow-[4px_4px_0px_#000000] border-[2.5px] border-black ${className}`}
+      className={`camp-card-canvas w-full px-4 py-3 text-sm font-black text-center ${className}`}
     >
       <div className="text-base sm:text-lg font-black">{resultText}</div>
       {!session && (
@@ -102,7 +102,7 @@ export function GameResultCard({
       <button
         type="button"
         onClick={onPlayAgain}
-        className="mt-3 camp-btn camp-btn-ember text-xs py-1.5 px-4 font-black shadow-[2px_2px_0px_#000000]"
+        className="mt-3 camp-btn camp-btn-ember text-xs py-1.5 px-4 font-black"
       >
         Play Again
       </button>
