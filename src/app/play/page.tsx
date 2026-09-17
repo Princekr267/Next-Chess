@@ -95,7 +95,7 @@ function PlayContent() {
       : "Next-Chess Board";
 
   return (
-    <div className="p-4 sm:p-8 max-w-5xl mx-auto w-full">
+    <div className="p-3 sm:p-6 lg:p-8 max-w-6xl mx-auto w-full">
       {/* Guest Notice */}
       {showGuestNotice && (
         <motion.div
