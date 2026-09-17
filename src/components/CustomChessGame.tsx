@@ -4,7 +4,8 @@ import { useState, useMemo, useRef, useEffect } from "react";
 import { Chess, Square } from "chess.js";
 import { Chessboard } from "react-chessboard";
 import { authClient } from "@/lib/auth-client";
-import { Maximize2, Minimize2, History, Undo2, Redo2 } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Maximize2, Minimize2, History, Undo2, Redo2, LogOut } from "lucide-react";
 
 import { customPieces } from "./chess/pieces";
 import {
@@ -20,6 +21,7 @@ import { MoveHistory } from "./chess/MoveHistory";
 import { GameResultCard } from "./chess/GameResultCard";
 
 export function CustomChessGame() {
+  const router = useRouter();
   const game = useMemo(() => new Chess(), []);
   const [fen, setFen] = useState(game.fen());
   const [selectedSquare, setSelectedSquare] = useState<Square | null>(null);
@@ -52,10 +54,10 @@ export function CustomChessGame() {
   const [confirmReset, setConfirmReset] = useState(false);
   const [redoStack, setRedoStack] = useState<{ from: string; to: string; promotion?: string }[]>([]);
 
-  // Draw and Resign states
+  // Draw and Exit states
   const [manualResult, setManualResult] = useState<"win" | "loss" | "draw" | null>(null);
   const [manualReason, setManualReason] = useState<string | null>(null);
-  const [confirmResign, setConfirmResign] = useState(false);
+  const [confirmExit, setConfirmExit] = useState(false);
   const [drawOffer, setDrawOffer] = useState<"White" | "Black" | null>(null);
 
   // Track window resize for mobile optimizations
@@ -258,28 +260,19 @@ export function CustomChessGame() {
     saveMatch();
   }
 
-  // ---- Resign & Draw Handlers ----
-  function handleResign() {
-    if (game.isGameOver() || manualResult) return;
-    if (!confirmResign) {
-      setConfirmResign(true);
-      setTimeout(() => setConfirmResign(false), 4000);
+  // ---- Exit & Draw Handlers ----
+  function handleExitGame() {
+    if (!confirmExit) {
+      setConfirmExit(true);
+      setTimeout(() => setConfirmExit(false), 4000);
       return;
     }
-    setConfirmResign(false);
-
-    // Current active player resigns
-    const resigningColor = turn.toLowerCase() as "white" | "black";
-    const winnerColor = resigningColor === "white" ? "black" : "white";
-    const resigningPlayerName = resigningColor === "white" ? playerOne : playerTwo;
-    const winnerPlayerName = resigningColor === "white" ? playerTwo : playerOne;
-
-    const outcome: "win" | "loss" = winnerColor === loggedInPlayerColor ? "win" : "loss";
-    const reasonText = `${resigningPlayerName} (${turn}) resigned. ${winnerPlayerName} wins!`;
-
-    setManualResult(outcome);
-    setManualReason(reasonText);
-    saveMatch(outcome);
+    setConfirmExit(false);
+    if (typeof document !== "undefined" && document.fullscreenElement) {
+      document.exitFullscreen().catch(() => {});
+    }
+    resetGame();
+    router.push("/modes");
   }
 
   function handleOfferDraw() {
@@ -313,7 +306,7 @@ export function CustomChessGame() {
     setConfirmReset(false);
     setManualResult(null);
     setManualReason(null);
-    setConfirmResign(false);
+    setConfirmExit(false);
     setDrawOffer(null);
     setRedoStack([]);
     setLoggedInPlayerColor("white"); // reset color choice for next game
@@ -643,14 +636,14 @@ export function CustomChessGame() {
 
                 <button
                   type="button"
-                  onClick={handleResign}
+                  onClick={handleExitGame}
                   className={`camp-btn text-xs py-1.5 px-2.5 font-black flex items-center gap-1 hover:scale-105 active:scale-95 transition-all ${
-                    confirmResign ? "camp-btn-red bg-rose-500 text-white animate-pulse" : "camp-btn-slate"
+                    confirmExit ? "camp-btn-red bg-rose-500 text-white animate-pulse" : "camp-btn-slate"
                   }`}
-                  title="Resign game"
+                  title="Exit game without win or loss"
                 >
-                  <span>🏳️</span>
-                  <span>{confirmResign ? "Confirm?" : "Resign"}</span>
+                  <LogOut className="w-3.5 h-3.5" />
+                  <span>{confirmExit ? "Confirm?" : "Exit"}</span>
                 </button>
               </>
             )}
@@ -845,15 +838,15 @@ export function CustomChessGame() {
 
               <button
                 type="button"
-                onClick={handleResign}
+                onClick={handleExitGame}
                 disabled={!gameHasStarted || !!result}
                 className={`camp-btn text-xs py-2.5 px-3 font-black flex items-center justify-center gap-1.5 disabled:opacity-40 transition-all ${
-                  confirmResign ? "camp-btn-red bg-rose-500 text-white animate-pulse" : "camp-btn-slate"
+                  confirmExit ? "camp-btn-red bg-rose-500 text-white animate-pulse" : "camp-btn-slate"
                 }`}
-                title="Resign game"
+                title="Exit match without win or loss"
               >
-                <span>🏳️</span>
-                <span>{confirmResign ? "Confirm Resign?" : "Resign"}</span>
+                <LogOut className="w-3.5 h-3.5" />
+                <span>{confirmExit ? "Confirm Exit?" : "Exit Game"}</span>
               </button>
             </div>
 
@@ -986,15 +979,15 @@ export function CustomChessGame() {
 
             <button
               type="button"
-              onClick={handleResign}
+              onClick={handleExitGame}
               disabled={!gameHasStarted || !!result}
               className={`camp-btn text-xs py-2 px-3 font-black flex items-center justify-center gap-1.5 disabled:opacity-40 transition-all ${
-                confirmResign ? "camp-btn-red bg-rose-500 text-white animate-pulse" : "camp-btn-slate"
+                confirmExit ? "camp-btn-red bg-rose-500 text-white animate-pulse" : "camp-btn-slate"
               }`}
-              title="Resign game"
+              title="Exit match without win or loss"
             >
-              <span>🏳️</span>
-              <span>{confirmResign ? "Confirm?" : "Resign"}</span>
+              <LogOut className="w-3.5 h-3.5" />
+              <span>{confirmExit ? "Confirm?" : "Exit"}</span>
             </button>
 
             <button
@@ -1148,17 +1141,17 @@ export function CustomChessGame() {
 
               <button
                 type="button"
-                onClick={handleResign}
+                onClick={handleExitGame}
                 disabled={!gameHasStarted || !!result}
                 className={`camp-btn text-xs py-2.5 px-3 font-black flex items-center justify-center gap-2 disabled:opacity-40 transition-all ${
-                  confirmResign
+                  confirmExit
                     ? "camp-btn-red bg-rose-500 text-white animate-pulse"
                     : "camp-btn-slate"
                 }`}
-                title="Resign the match"
+                title="Exit match without win or loss"
               >
-                <span>🏳️</span>
-                <span>{confirmResign ? "Confirm Resign?" : "Resign"}</span>
+                <LogOut className="w-4 h-4" />
+                <span>{confirmExit ? "Confirm Exit?" : "Exit Game"}</span>
               </button>
             </div>
 
