@@ -20,8 +20,16 @@ import { PlayerCard } from "./chess/PlayerCard";
 import { MoveHistory } from "./chess/MoveHistory";
 import { GameResultCard } from "./chess/GameResultCard";
 import { PromotionModal, PromotionPiece } from "./chess/PromotionModal";
+import type { GameMode } from "@/app/play/page";
 
-export function CustomChessGame() {
+/** Badge metadata per game mode — scalable: add new modes here. */
+const MODE_BADGE_META: Record<GameMode, { icon: string; label: string; badgeClass: string }> = {
+  local: { icon: "🏠", label: "Local", badgeClass: "camp-badge-teal" },
+  bot:   { icon: "🤖", label: "Bot",   badgeClass: "camp-badge-orange" },
+  friend:{ icon: "⚔️", label: "Friend", badgeClass: "camp-badge-violet" },
+};
+
+export function CustomChessGame({ gameMode = "local" }: { gameMode?: GameMode }) {
   const router = useRouter();
   const game = useMemo(() => new Chess(), []);
   const [fen, setFen] = useState(game.fen());
@@ -635,6 +643,9 @@ export function CustomChessGame() {
           </div>
 
           <div className="flex items-center gap-1.5 shrink-0">
+            <span className={`camp-badge text-[10px] px-2 py-0.5 ${MODE_BADGE_META[gameMode].badgeClass}`}>
+              {MODE_BADGE_META[gameMode].icon} {MODE_BADGE_META[gameMode].label}
+            </span>
             <span
               className={`camp-badge text-[11px] px-2.5 py-1 ${
                 turn === "White" ? "camp-badge-yellow" : "camp-badge-slate"
@@ -820,9 +831,14 @@ export function CustomChessGame() {
             }}
           >
             <div className="flex items-center justify-between gap-2">
-              <span className="text-[11px] font-black uppercase tracking-wider text-amber-200/60">
-                Theater Arena
-              </span>
+              <div className="flex items-center gap-2">
+                <span className="text-[11px] font-black uppercase tracking-wider text-amber-200/60">
+                  Theater Arena
+                </span>
+                <span className={`camp-badge text-[10px] px-2 py-0.5 ${MODE_BADGE_META[gameMode].badgeClass}`}>
+                  {MODE_BADGE_META[gameMode].icon} {MODE_BADGE_META[gameMode].label}
+                </span>
+              </div>
               <button
                 type="button"
                 onClick={toggleFullscreen}
@@ -1119,8 +1135,8 @@ export function CustomChessGame() {
             <span className="text-[11px] font-black uppercase tracking-wider text-amber-200/60">
               Match Console
             </span>
-            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-950/60 border border-amber-900/40 text-amber-300">
-              Local Pass &amp; Play
+            <span className={`camp-badge text-[10px] px-2 py-0.5 ${MODE_BADGE_META[gameMode].badgeClass}`}>
+              {MODE_BADGE_META[gameMode].icon} {MODE_BADGE_META[gameMode].label}
             </span>
           </div>
 

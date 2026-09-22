@@ -1,8 +1,14 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { motion } from "framer-motion";
 import { useRouter } from "next/navigation";
 import { authClient } from "@/lib/auth-client";
+
+const BoardPreview = dynamic(
+  () => import("./chess/BoardPreview").then((mod) => mod.BoardPreview),
+  { ssr: false, loading: () => <div className="w-full aspect-square rounded-2xl bg-[#2a1b0f] animate-pulse" /> }
+);
 
 const steps = [
   {
@@ -58,6 +64,22 @@ export function HowItWorks() {
             Jump in, challenge a bot, or sit across the board with a friend for fireside chess.
           </p>
         </div>
+
+        {/* Board Preview Hero — gives first-time visitors a visual taste */}
+        <motion.div
+          initial={{ opacity: 0, y: 20, scale: 0.97 }}
+          whileInView={{ opacity: 1, y: 0, scale: 1 }}
+          viewport={{ once: true }}
+          transition={{ duration: 0.5 }}
+          className="mb-14 flex flex-col items-center"
+        >
+          <div className="w-full max-w-[320px] sm:max-w-[380px] mx-auto">
+            <BoardPreview className="w-full" />
+          </div>
+          <p className="mt-4 text-xs sm:text-sm text-amber-300/80 font-bold tracking-wide uppercase">
+            Carved Wood Board · Custom Pieces · Beautiful Gameplay
+          </p>
+        </motion.div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {steps.map((step, i) => (

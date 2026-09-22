@@ -6,21 +6,82 @@ import { CustomChessGame } from "@/components/CustomChessGame";
 import { motion } from "framer-motion";
 import Link from "next/link";
 
+// ── Shared types & constants ──────────────────────────────────────────────────
+
+/** All game modes the app supports (scalable — add "ranked" / "puzzle" etc. later). */
+export type GameMode = "local" | "bot" | "friend";
+
+const GUEST_NOTICE_DISMISSED_KEY = "next_chess_guest_notice_dismissed";
+
+/** Mode display metadata — single source of truth for labels, icons, badges. */
+const MODE_META: Record<
+  GameMode,
+  { label: string; shortLabel: string; icon: string; badgeClass: string }
+> = {
+  local: {
+    label: "Local Board (Pass & Play)",
+    shortLabel: "Local",
+    icon: "🏠",
+    badgeClass: "camp-badge-teal",
+  },
+  bot: {
+    label: "vs Base Bot",
+    shortLabel: "Bot",
+    icon: "🤖",
+    badgeClass: "camp-badge-orange",
+  },
+  friend: {
+    label: "Friend Duel",
+    shortLabel: "Friend",
+    icon: "⚔️",
+    badgeClass: "camp-badge-violet",
+  },
+};
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+function resolveMode(raw: string | null): GameMode {
+  if (raw === "bot" || raw === "friend" || raw === "local") return raw;
+  return "local"; // default fallback
+}
+
+function isGuestNoticeDismissed(): boolean {
+  try {
+    return localStorage.getItem(GUEST_NOTICE_DISMISSED_KEY) === "true";
+  } catch {
+    return false;
+  }
+}
+
+function persistGuestNoticeDismissal(): void {
+  try {
+    localStorage.setItem(GUEST_NOTICE_DISMISSED_KEY, "true");
+  } catch {
+    // Incognito / storage-full — fail silently
+  }
+}
+
+// ── Main Play Content ────────────────────────────────────────────────────────
+
 function PlayContent() {
   const { data: session, isPending } = authClient.useSession();
   const [showGuestNotice, setShowGuestNotice] = useState(false);
 
   const searchParams = useSearchParams();
-  const mode = searchParams.get("mode");
+  const mode = resolveMode(searchParams.get("mode"));
+  const meta = MODE_META[mode];
 
   useEffect(() => {
-    // Only decide once session status is known (not while isPending)
-    if (!isPending && !session) {
+    // Show notice only once session status is known, user is guest, and not dismissed before
+    if (!isPending && !session && !isGuestNoticeDismissed()) {
       setShowGuestNotice(true);
     }
   }, [isPending, session]);
 
-
+  function handleDismissGuestNotice() {
+    setShowGuestNotice(false);
+    persistGuestNoticeDismissal();
+  }
 
   // Show "Coming Soon" screen if mode is bot or friend
   if (mode === "bot" || mode === "friend") {
@@ -86,17 +147,9 @@ function PlayContent() {
     );
   }
 
-  // Mode title label
-  const modeTitle =
-    mode === "friend"
-      ? "Friend Duel"
-      : mode === "local"
-      ? "Local Board (Pass & Play)"
-      : "Next-Chess Board";
-
   return (
     <div className="p-3 sm:p-6 lg:p-8 max-w-6xl mx-auto w-full">
-      {/* Guest Notice */}
+      {/* Guest Notice — persisted dismissal via localStorage */}
       {showGuestNotice && (
         <motion.div
           initial={{ opacity: 0, y: -10 }}
@@ -118,7 +171,7 @@ function PlayContent() {
             </div>
           </div>
           <button
-            onClick={() => setShowGuestNotice(false)}
+            onClick={handleDismissGuestNotice}
             className="shrink-0 camp-btn camp-btn-white text-xs py-1 px-3 font-black"
           >
             Got It
@@ -134,10 +187,10 @@ function PlayContent() {
             style={{ boxShadow: "1px 2px 5px rgba(28,18,6,0.35), inset -1px -1px 2px rgba(28,18,6,0.2), inset 1px 1px 2px rgba(255,215,140,0.4)" }}
           />
           <h1 className="text-xl sm:text-2xl font-black text-white tracking-tight">
-            {modeTitle}
+            {meta.label}
           </h1>
-          <span className="camp-badge camp-badge-yellow text-[10px] hidden sm:inline-flex">
-            NEXT-CHESS
+          <span className={`camp-badge text-[10px] hidden sm:inline-flex ${meta.badgeClass}`}>
+            {meta.icon} {meta.shortLabel.toUpperCase()}
           </span>
         </div>
 
@@ -149,9 +202,9 @@ function PlayContent() {
         </Link>
       </div>
 
-      {/* Chess Game */}
+      {/* Chess Game — pass mode so the board can show a persistent indicator */}
       <div className="py-2 flex justify-center">
-        <CustomChessGame />
+        <CustomChessGame gameMode={mode} />
       </div>
     </div>
   );
