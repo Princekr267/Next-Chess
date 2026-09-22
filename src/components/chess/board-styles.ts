@@ -53,9 +53,22 @@ export function getLightNotationStyle(isMobile: boolean): React.CSSProperties {
 
 export function buildSquareStyles(
   selectedSquare: Square | null,
-  game: Chess
+  game: Chess,
+  pendingPromotion?: { from: string; to: string } | null
 ): Record<string, React.CSSProperties> {
   const styles: Record<string, React.CSSProperties> = {};
+
+  if (pendingPromotion) {
+    styles[pendingPromotion.from] = {
+      backgroundColor: "rgba(245, 158, 11, 0.45)",
+      boxShadow: "inset 0 0 0 2px #f59e0b",
+    };
+    styles[pendingPromotion.to] = {
+      backgroundColor: "rgba(234, 179, 8, 0.55)",
+      boxShadow: "inset 0 0 0 3px #fbbf24, 0 0 12px rgba(251, 191, 36, 0.6)",
+    };
+    return styles;
+  }
 
   if (!selectedSquare) {
     return styles;

@@ -19,6 +19,7 @@ import {
 import { PlayerCard } from "./chess/PlayerCard";
 import { MoveHistory } from "./chess/MoveHistory";
 import { GameResultCard } from "./chess/GameResultCard";
+import { PromotionModal, PromotionPiece } from "./chess/PromotionModal";
 
 export function CustomChessGame() {
   const router = useRouter();
@@ -59,6 +60,13 @@ export function CustomChessGame() {
   const [manualReason, setManualReason] = useState<string | null>(null);
   const [confirmExit, setConfirmExit] = useState(false);
   const [drawOffer, setDrawOffer] = useState<"White" | "Black" | null>(null);
+
+  // Pawn promotion choice state
+  const [pendingPromotion, setPendingPromotion] = useState<{
+    from: Square;
+    to: Square;
+    color: "w" | "b";
+  } | null>(null);
 
   // Track window resize for mobile optimizations
   useEffect(() => {
@@ -268,6 +276,7 @@ export function CustomChessGame() {
       return;
     }
     setConfirmExit(false);
+    setPendingPromotion(null);
     if (typeof document !== "undefined" && document.fullscreenElement) {
       document.exitFullscreen().catch(() => {});
     }
@@ -308,6 +317,7 @@ export function CustomChessGame() {
     setManualReason(null);
     setConfirmExit(false);
     setDrawOffer(null);
+    setPendingPromotion(null);
     setRedoStack([]);
     setLoggedInPlayerColor("white"); // reset color choice for next game
     if (session?.user?.name) setPlayerOne(session.user.name);
@@ -332,6 +342,7 @@ export function CustomChessGame() {
 
   function handleUndo() {
     if (game.history().length === 0 || !!result) return;
+    setPendingPromotion(null);
     const undoneMove = game.undo();
     if (undoneMove) {
       setRedoStack((prev) => [
@@ -350,6 +361,7 @@ export function CustomChessGame() {
 
   function handleRedo() {
     if (redoStack.length === 0 || !!result) return;
+    setPendingPromotion(null);
     const nextMove = redoStack[redoStack.length - 1];
     try {
       const redone = game.move(nextMove);
@@ -366,6 +378,41 @@ export function CustomChessGame() {
   }
 
   // ---- Move handling ----
+  function isPromotionMove(from: string, to: string): boolean {
+    if (!from || !to) return false;
+    const piece = game.get(from as Square);
+    if (!piece || piece.type !== "p") return false;
+    if (piece.color === "w" && !to.endsWith("8")) return false;
+    if (piece.color === "b" && !to.endsWith("1")) return false;
+
+    const legalMoves = game.moves({ square: from as Square, verbose: true });
+    return legalMoves.some((m) => m.to === to && !!m.promotion);
+  }
+
+  function handleSelectPromotionPiece(pieceChoice: PromotionPiece) {
+    if (!pendingPromotion) return;
+    const { from, to } = pendingPromotion;
+    try {
+      const move = game.move({ from, to, promotion: pieceChoice });
+      if (move) {
+        setRedoStack([]); // Clear redo history on new move
+        setFen(game.fen());
+        setTurn(game.turn() === "w" ? "White" : "Black");
+        setSelectedSquare(null);
+        saveMatchIfFinished();
+      }
+    } catch (err) {
+      console.warn("Promotion move failed:", err);
+    } finally {
+      setPendingPromotion(null);
+    }
+  }
+
+  function handleCancelPromotion() {
+    setPendingPromotion(null);
+    setSelectedSquare(null);
+  }
+
   function onPieceDrop({
     sourceSquare,
     targetSquare,
@@ -375,8 +422,19 @@ export function CustomChessGame() {
     targetSquare: string | null;
   }): boolean {
     if (!targetSquare) return false;
+
+    // Check if this move requires pawn promotion
+    if (isPromotionMove(sourceSquare, targetSquare)) {
+      setPendingPromotion({
+        from: sourceSquare as Square,
+        to: targetSquare as Square,
+        color: game.turn(),
+      });
+      return false; // react-chessboard will wait for piece selection
+    }
+
     try {
-      const move = game.move({ from: sourceSquare, to: targetSquare, promotion: "q" });
+      const move = game.move({ from: sourceSquare, to: targetSquare });
       if (move === null) return false;
       setRedoStack([]); // Clear redo history on new move
       setFen(game.fen());
@@ -393,8 +451,18 @@ export function CustomChessGame() {
     const clickedSquare = square as Square;
 
     if (selectedSquare) {
+      // Check if this move requires pawn promotion
+      if (isPromotionMove(selectedSquare, clickedSquare)) {
+        setPendingPromotion({
+          from: selectedSquare,
+          to: clickedSquare,
+          color: game.turn(),
+        });
+        return;
+      }
+
       try {
-        const move = game.move({ from: selectedSquare, to: clickedSquare, promotion: "q" });
+        const move = game.move({ from: selectedSquare, to: clickedSquare });
         if (move) {
           setRedoStack([]); // Clear redo history on new move
           setFen(game.fen());
@@ -434,7 +502,7 @@ export function CustomChessGame() {
           boardOrientation: loggedInPlayerColor, // NEW: flip board based on chosen color
           onPieceDrop,
           onSquareClick,
-          squareStyles: buildSquareStyles(selectedSquare, game),
+          squareStyles: buildSquareStyles(selectedSquare, game, pendingPromotion),
           pieces: customPieces,
           boardStyle: {
             borderRadius: "8px",
@@ -527,6 +595,18 @@ export function CustomChessGame() {
       </div>
     );
   };
+
+  // Promotion Selection Modal
+  const renderPromotionModal = () => (
+    <PromotionModal
+      isOpen={!!pendingPromotion}
+      color={pendingPromotion?.color || "w"}
+      fromSquare={pendingPromotion?.from || ""}
+      toSquare={pendingPromotion?.to || ""}
+      onSelectPiece={handleSelectPromotionPiece}
+      onCancel={handleCancelPromotion}
+    />
+  );
 
   // =========================================================================
   // 1. MOBILE FULLSCREEN VIEW
@@ -672,6 +752,7 @@ export function CustomChessGame() {
         </div>
 
         {renderDrawOfferModal()}
+        {renderPromotionModal()}
 
         {showMobileHistory && (
           <MoveHistory
@@ -873,6 +954,7 @@ export function CustomChessGame() {
         </div>
 
         {renderDrawOfferModal()}
+        {renderPromotionModal()}
       </div>
     );
   }
@@ -1196,6 +1278,7 @@ export function CustomChessGame() {
 
       {/* Draw Offer Modal */}
       {renderDrawOfferModal()}
+      {renderPromotionModal()}
 
       {/* Game Result Card on Mobile (< lg) */}
       <div className="w-full max-w-[min(98vw,560px)] lg:hidden">
