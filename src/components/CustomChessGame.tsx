@@ -633,10 +633,10 @@ export function CustomChessGame({ gameMode = "local" }: { gameMode?: GameMode })
         <div className="w-full flex items-center justify-between gap-2 px-1 py-1">
           <div className="min-w-0 flex-1">
             <PlayerCard
-              color="black"
+              color={loggedInPlayerColor === "white" ? "black" : "white"}
               name={playerTwo}
               onNameChange={setPlayerTwo}
-              isTurn={turn === "Black"}
+              isTurn={turn === (loggedInPlayerColor === "white" ? "Black" : "White")}
               isCompact
               inputId="opponent-mobile-fs"
             />
@@ -679,11 +679,12 @@ export function CustomChessGame({ gameMode = "local" }: { gameMode?: GameMode })
           <div className="w-full flex items-center justify-between gap-2">
             <div className="min-w-0 flex-1">
               <PlayerCard
-                color="white"
+                color={loggedInPlayerColor}
                 name={playerOne}
                 onNameChange={setPlayerOne}
-                isTurn={turn === "White"}
+                isTurn={turn === (loggedInPlayerColor === "white" ? "White" : "Black")}
                 isCompact
+                isYou
                 inputId="you-mobile-fs"
               />
             </div>
@@ -802,10 +803,10 @@ export function CustomChessGame({ gameMode = "local" }: { gameMode?: GameMode })
         {/* Left: Massive Board */}
         <div className="flex flex-col items-center gap-3">
           <PlayerCard
-            color="black"
+            color={loggedInPlayerColor === "white" ? "black" : "white"}
             name={playerTwo}
             onNameChange={setPlayerTwo}
-            isTurn={turn === "Black"}
+            isTurn={turn === (loggedInPlayerColor === "white" ? "Black" : "White")}
             inputId="opponent-fs"
             className="max-w-[min(90vh,calc(100vw-420px),820px)]"
           />
@@ -813,10 +814,11 @@ export function CustomChessGame({ gameMode = "local" }: { gameMode?: GameMode })
           {renderBoard({ width: "min(84vh, calc(100vw - 420px), 820px)", maxWidth: "100%" })}
 
           <PlayerCard
-            color="white"
+            color={loggedInPlayerColor}
             name={playerOne}
             onNameChange={setPlayerOne}
-            isTurn={turn === "White"}
+            isTurn={turn === (loggedInPlayerColor === "white" ? "White" : "Black")}
+            isYou
             inputId="you-fs"
             className="max-w-[min(90vh,calc(100vw-420px),820px)]"
           />
@@ -985,24 +987,25 @@ export function CustomChessGame({ gameMode = "local" }: { gameMode?: GameMode })
     >
       {/* LEFT COLUMN: Chess Board Arena */}
       <div className="flex flex-col items-center gap-2.5 w-full max-w-[min(98vw,560px)] shrink-0">
-        {/* Opponent (Black) Card */}
+        {/* Opponent Card */}
         <PlayerCard
-          color="black"
+          color={loggedInPlayerColor === "white" ? "black" : "white"}
           name={playerTwo}
           onNameChange={setPlayerTwo}
-          isTurn={turn === "Black"}
+          isTurn={turn === (loggedInPlayerColor === "white" ? "Black" : "White")}
           inputId="opponent"
         />
 
         {/* Board Tray */}
         {renderBoard({ maxWidth: "min(98vw, 560px)" })}
 
-        {/* Player (White / You) Card */}
+        {/* Player (You) Card */}
         <PlayerCard
-          color="white"
+          color={loggedInPlayerColor}
           name={playerOne}
           onNameChange={setPlayerOne}
-          isTurn={turn === "White"}
+          isTurn={turn === (loggedInPlayerColor === "white" ? "White" : "Black")}
+          isYou
           inputId="you"
         />
 

@@ -8,6 +8,8 @@ interface PlayerCardProps {
   isCompact?: boolean;
   className?: string;
   inputId?: string;
+  /** If true, appends "(You)" to the color label. */
+  isYou?: boolean;
 }
 
 export function PlayerCard({
@@ -18,6 +20,7 @@ export function PlayerCard({
   isCompact = false,
   className = "",
   inputId,
+  isYou = false,
 }: PlayerCardProps) {
   const isWhite = color === "white";
   const id = inputId || (isWhite ? "player-you" : "player-opponent");
@@ -60,7 +63,7 @@ export function PlayerCard({
               isWhite ? "text-amber-300/90" : "text-stone-400"
             }`}
           >
-            {isWhite ? "White (You):" : "Black:"}
+            {isWhite ? "White" : "Black"}{isYou ? " (You):" : ":"}
           </label>
           <input
             id={id}
