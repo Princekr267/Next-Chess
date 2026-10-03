@@ -7,7 +7,7 @@ import axios from "axios";
 
 interface Match {
   id: number;
-  opponentType: "local" | "bot";
+  opponentType: "local" | "bot" | "friend";
   botDifficulty: string | null;
   playerColor: "white" | "black";
   player2Name: string | null;
@@ -110,7 +110,7 @@ export default function HistoryPage() {
 
   // ---- Filters and pagination ----
   const [resultFilter, setResultFilter] = useState<"all" | "win" | "loss" | "draw">("all");
-  const [opponentFilter, setOpponentFilter] = useState<"all" | "local" | "bot">("all");
+  const [opponentFilter, setOpponentFilter] = useState<"all" | "local" | "bot" | "friend">("all");
   const [currentPage, setCurrentPage] = useState(1);
   const PAGE_SIZE = 8;
 
@@ -130,7 +130,7 @@ export default function HistoryPage() {
     setCurrentPage(1);
   };
 
-  const handleOpponentFilterChange = (filter: "all" | "local" | "bot") => {
+  const handleOpponentFilterChange = (filter: "all" | "local" | "bot" | "friend") => {
     setOpponentFilter(filter);
     setCurrentPage(1);
   };
@@ -323,6 +323,7 @@ export default function HistoryPage() {
                       { id: "all", label: "All Modes" },
                       { id: "local", label: "🏠 Local" },
                       { id: "bot", label: "🤖 Bot" },
+                      { id: "friend", label: "⚔️ Friend" },
                     ] as const
                   ).map((tab) => {
                     const isActive = opponentFilter === tab.id;
@@ -446,6 +447,11 @@ export default function HistoryPage() {
                             {match.opponentType === "local" && (
                               <span className="camp-badge camp-badge-teal text-[10px] px-2">
                                 🏠 Local
+                              </span>
+                            )}
+                            {match.opponentType === "friend" && (
+                              <span className="camp-badge camp-badge-violet text-[10px] px-2">
+                                ⚔️ Friend Duel
                               </span>
                             )}
                           </div>

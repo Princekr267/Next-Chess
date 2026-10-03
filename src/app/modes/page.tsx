@@ -50,7 +50,7 @@ const modes = [
     subtitle: "Online Duel",
     description: "Challenge a friend via private room codes with real-time clock and move sync.",
     href: "/play?mode=friend",
-    badge: "SOON",
+    badge: "LIVE",
     badgeClass: "camp-badge-violet",
     btnText: "Duel Friend",
     btnClass: "camp-btn camp-btn-violet",
