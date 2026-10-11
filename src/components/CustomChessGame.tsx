@@ -278,6 +278,16 @@ export function CustomChessGame({ gameMode = "local" }: { gameMode?: GameMode })
 
   // ---- Exit & Draw Handlers ----
   function handleExitGame() {
+    // If game has NOT started or match is already finished, exit immediately without 2-click confirm
+    if (!gameHasStarted || result) {
+      if (typeof document !== "undefined" && document.fullscreenElement) {
+        document.exitFullscreen().catch(() => {});
+      }
+      resetGame();
+      router.push("/modes");
+      return;
+    }
+
     if (!confirmExit) {
       setConfirmExit(true);
       setTimeout(() => setConfirmExit(false), 4000);
@@ -715,30 +725,28 @@ export function CustomChessGame({ gameMode = "local" }: { gameMode?: GameMode })
             </button>
 
             {gameHasStarted && !result && (
-              <>
-                <button
-                  type="button"
-                  onClick={handleOfferDraw}
-                  className="camp-btn camp-btn-slate text-xs py-1.5 px-2.5 font-black flex items-center gap-1 hover:scale-105 active:scale-95 transition-all"
-                  title="Offer mutual draw"
-                >
-                  <span>🤝</span>
-                  <span>Draw</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={handleExitGame}
-                  className={`camp-btn text-xs py-1.5 px-2.5 font-black flex items-center gap-1 hover:scale-105 active:scale-95 transition-all ${
-                    confirmExit ? "camp-btn-red bg-rose-500 text-white animate-pulse" : "camp-btn-slate"
-                  }`}
-                  title="Exit game without win or loss"
-                >
-                  <LogOut className="w-3.5 h-3.5" />
-                  <span>{confirmExit ? "Confirm?" : "Exit"}</span>
-                </button>
-              </>
+              <button
+                type="button"
+                onClick={handleOfferDraw}
+                className="camp-btn camp-btn-slate text-xs py-1.5 px-2.5 font-black flex items-center gap-1 hover:scale-105 active:scale-95 transition-all"
+                title="Offer mutual draw"
+              >
+                <span>🤝</span>
+                <span>Draw</span>
+              </button>
             )}
+
+            <button
+              type="button"
+              onClick={handleExitGame}
+              className={`camp-btn text-xs py-1.5 px-2.5 font-black flex items-center gap-1 hover:scale-105 active:scale-95 transition-all ${
+                confirmExit ? "camp-btn-red bg-rose-500 text-white animate-pulse" : "camp-btn-slate"
+              }`}
+              title="Exit game"
+            >
+              <LogOut className="w-3.5 h-3.5" />
+              <span>{confirmExit ? "Confirm?" : "Exit"}</span>
+            </button>
 
             <button
               type="button"
@@ -780,6 +788,7 @@ export function CustomChessGame({ gameMode = "local" }: { gameMode?: GameMode })
           session={session}
           saveStatus={saveStatus}
           onPlayAgain={resetGame}
+          onExit={handleExitGame}
           ratingChange={ratingChange}
           isOverlay
         />
@@ -938,11 +947,10 @@ export function CustomChessGame({ gameMode = "local" }: { gameMode?: GameMode })
               <button
                 type="button"
                 onClick={handleExitGame}
-                disabled={!gameHasStarted || !!result}
-                className={`camp-btn text-xs py-2.5 px-3 font-black flex items-center justify-center gap-1.5 disabled:opacity-40 transition-all ${
+                className={`camp-btn text-xs py-2.5 px-3 font-black flex items-center justify-center gap-1.5 transition-all ${
                   confirmExit ? "camp-btn-red bg-rose-500 text-white animate-pulse" : "camp-btn-slate"
                 }`}
-                title="Exit match without win or loss"
+                title="Exit game to modes"
               >
                 <LogOut className="w-3.5 h-3.5" />
                 <span>{confirmExit ? "Confirm Exit?" : "Exit Game"}</span>
@@ -967,6 +975,7 @@ export function CustomChessGame({ gameMode = "local" }: { gameMode?: GameMode })
             session={session}
             saveStatus={saveStatus}
             onPlayAgain={resetGame}
+            onExit={handleExitGame}
             ratingChange={ratingChange}
           />
         </div>
@@ -1081,11 +1090,10 @@ export function CustomChessGame({ gameMode = "local" }: { gameMode?: GameMode })
             <button
               type="button"
               onClick={handleExitGame}
-              disabled={!gameHasStarted || !!result}
-              className={`camp-btn text-xs py-2 px-3 font-black flex items-center justify-center gap-1.5 disabled:opacity-40 transition-all ${
+              className={`camp-btn text-xs py-2 px-3 font-black flex items-center justify-center gap-1.5 transition-all ${
                 confirmExit ? "camp-btn-red bg-rose-500 text-white animate-pulse" : "camp-btn-slate"
               }`}
-              title="Exit match without win or loss"
+              title="Exit game to modes"
             >
               <LogOut className="w-3.5 h-3.5" />
               <span>{confirmExit ? "Confirm?" : "Exit"}</span>
@@ -1243,13 +1251,12 @@ export function CustomChessGame({ gameMode = "local" }: { gameMode?: GameMode })
               <button
                 type="button"
                 onClick={handleExitGame}
-                disabled={!gameHasStarted || !!result}
-                className={`camp-btn text-xs py-2.5 px-3 font-black flex items-center justify-center gap-2 disabled:opacity-40 transition-all ${
+                className={`camp-btn text-xs py-2.5 px-3 font-black flex items-center justify-center gap-2 transition-all ${
                   confirmExit
                     ? "camp-btn-red bg-rose-500 text-white animate-pulse"
                     : "camp-btn-slate"
                 }`}
-                title="Exit match without win or loss"
+                title="Exit game to modes"
               >
                 <LogOut className="w-4 h-4" />
                 <span>{confirmExit ? "Confirm Exit?" : "Exit Game"}</span>
@@ -1291,6 +1298,7 @@ export function CustomChessGame({ gameMode = "local" }: { gameMode?: GameMode })
           session={session}
           saveStatus={saveStatus}
           onPlayAgain={resetGame}
+          onExit={handleExitGame}
           ratingChange={ratingChange}
         />
       </div>
@@ -1307,6 +1315,7 @@ export function CustomChessGame({ gameMode = "local" }: { gameMode?: GameMode })
           session={session}
           saveStatus={saveStatus}
           onPlayAgain={resetGame}
+          onExit={handleExitGame}
           ratingChange={ratingChange}
         />
       </div>

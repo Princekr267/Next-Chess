@@ -62,17 +62,21 @@ export async function POST(
     .where(eq(gameRooms.code, upperCode));
 
   // Relay move to the channel — both players receive it,
-  // but the sender's client ignores its own moves.
-  const pusher = getPusherServer();
-  await pusher.trigger(`presence-room-${upperCode}`, "move", {
-    from,
-    to,
-    promotion: promotion ?? null,
-    fen,
-    whiteTimeMs: whiteTimeMs ?? null,
-    blackTimeMs: blackTimeMs ?? null,
-    movedBy: session.user.id,
-  });
+  // but the sender's client ignores its own moves. (non-fatal)
+  try {
+    const pusher = getPusherServer();
+    await pusher.trigger(`presence-room-${upperCode}`, "move", {
+      from,
+      to,
+      promotion: promotion ?? null,
+      fen,
+      whiteTimeMs: whiteTimeMs ?? null,
+      blackTimeMs: blackTimeMs ?? null,
+      movedBy: session.user.id,
+    });
+  } catch (err) {
+    console.error("[rooms/move] Pusher trigger failed (non-fatal):", err);
+  }
 
   return NextResponse.json({ ok: true });
 }

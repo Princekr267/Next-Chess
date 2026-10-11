@@ -23,15 +23,20 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Missing socket_id or channel_name" }, { status: 400 });
   }
 
-  const pusher = getPusherServer();
+  try {
+    const pusher = getPusherServer();
 
-  const presenceData = {
-    user_id: session.user.id,
-    user_info: {
-      name: session.user.name,
-    },
-  };
+    const presenceData = {
+      user_id: session.user.id,
+      user_info: {
+        name: session.user.name,
+      },
+    };
 
-  const authResponse = pusher.authorizeChannel(socketId, channel, presenceData);
-  return NextResponse.json(authResponse);
+    const authResponse = pusher.authorizeChannel(socketId, channel, presenceData);
+    return NextResponse.json(authResponse);
+  } catch (err) {
+    console.error("[pusher/auth] Authorization failed:", err);
+    return NextResponse.json({ error: "Pusher authorization failed" }, { status: 500 });
+  }
 }

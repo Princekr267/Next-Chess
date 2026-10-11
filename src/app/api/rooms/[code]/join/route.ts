@@ -19,7 +19,7 @@ export async function POST(
     return NextResponse.json({ error: "Sign in to play online" }, { status: 401 });
   }
 
-  const upperCode = code.toUpperCase();
+  const upperCode = code.trim().toUpperCase();
 
   const [room] = await db
     .select()
@@ -30,12 +30,28 @@ export async function POST(
     return NextResponse.json({ error: "Room not found" }, { status: 404 });
   }
 
-  if (room.status !== "waiting") {
-    return NextResponse.json({ error: "Room is no longer open" }, { status: 409 });
+  // If this user is already the host, let them re-enter their own room
+  if (room.hostUserId === session.user.id) {
+    const hostColor = room.hostColor === "black" ? "black" : "white";
+    return NextResponse.json({
+      room,
+      myRole: "host" as const,
+      myColor: hostColor,
+    });
   }
 
-  if (room.hostUserId === session.user.id) {
-    return NextResponse.json({ error: "You cannot join your own room" }, { status: 400 });
+  // Idempotent: if this user is already the guest, return the room as-is
+  if (room.guestUserId === session.user.id) {
+    const guestColor = room.hostColor === "black" ? "white" : "black";
+    return NextResponse.json({
+      room,
+      myRole: "guest" as const,
+      myColor: guestColor,
+    });
+  }
+
+  if (room.status !== "waiting") {
+    return NextResponse.json({ error: "Room is no longer open" }, { status: 409 });
   }
 
   // Resolve "random" host color now that guest is joining
@@ -55,19 +71,23 @@ export async function POST(
     .where(eq(gameRooms.code, upperCode))
     .returning();
 
-  // Notify the host that the guest joined via Pusher
-  const pusher = getPusherServer();
-  await pusher.trigger(`presence-room-${upperCode}`, "player-joined", {
-    guestUserId: session.user.id,
-    guestName: session.user.name,
-    hostColor: resolvedHostColor,
-  });
+  // Notify the host that the guest joined via Pusher (non-fatal)
+  try {
+    const pusher = getPusherServer();
+    await pusher.trigger(`presence-room-${upperCode}`, "player-joined", {
+      guestUserId: session.user.id,
+      guestName: session.user.name,
+      hostColor: resolvedHostColor,
+    });
+  } catch (err) {
+    console.error("[rooms/join] Pusher trigger failed (non-fatal):", err);
+  }
 
   const guestColor = resolvedHostColor === "white" ? "black" : "white";
 
   return NextResponse.json({
     room: updated,
-    myRole: "guest",
+    myRole: "guest" as const,
     myColor: guestColor,
   });
 }

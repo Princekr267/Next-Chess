@@ -45,12 +45,16 @@ export async function POST(
     return NextResponse.json({ error: "Not a participant" }, { status: 403 });
   }
 
-  const pusher = getPusherServer();
-  await pusher.trigger(`presence-room-${upperCode}`, type, {
-    ...payload,
-    fromUserId: session.user.id,
-    fromName: session.user.name,
-  });
+  try {
+    const pusher = getPusherServer();
+    await pusher.trigger(`presence-room-${upperCode}`, type, {
+      ...payload,
+      fromUserId: session.user.id,
+      fromName: session.user.name,
+    });
+  } catch (err) {
+    console.error("[rooms/event] Pusher trigger failed (non-fatal):", err);
+  }
 
   return NextResponse.json({ ok: true });
 }

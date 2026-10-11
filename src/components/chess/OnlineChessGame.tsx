@@ -173,11 +173,15 @@ export function OnlineChessGame({
 
   // Pusher subscriptions
   useEffect(() => {
-    let pusher: any = null;
     let channel: any = null;
 
+    const pusher = getPusherClient();
+    if (!pusher) {
+      // Pusher not configured — rely on HTTP polling fallback
+      return;
+    }
+
     try {
-      pusher = getPusherClient();
       const channelName = `presence-room-${roomCode.toUpperCase()}`;
       channel = pusher.subscribe(channelName);
 
@@ -331,30 +335,104 @@ export function OnlineChessGame({
     syncClocks,
   ]);
 
-  // Periodic recovery fallback
+  // Periodic recovery fallback — also serves as primary sync when Pusher is unavailable
+  const pusherAvailable = !!getPusherClient();
+  const latestStateRef = useRef({
+    room,
+    game,
+    myColor,
+    isTimed,
+    initialWhiteMs,
+    initialBlackMs,
+    syncClocks,
+    finalizeGame,
+    stopClocks,
+  });
+
+  useEffect(() => {
+    latestStateRef.current = {
+      room,
+      game,
+      myColor,
+      isTimed,
+      initialWhiteMs,
+      initialBlackMs,
+      syncClocks,
+      finalizeGame,
+      stopClocks,
+    };
+  });
+
   useEffect(() => {
     if (finishedRef.current) return;
 
+    const pollIntervalMs = pusherAvailable ? 6000 : 3000;
     const interval = setInterval(async () => {
+      const state = latestStateRef.current;
       try {
         const { data } = await axios.get(`/api/rooms/${roomCode}`);
-        if (data.room) {
-          if (data.room.status === "in_progress" && room.status === "waiting") {
-            setRoom(data.room);
-            setMyColor(data.myColor);
+        if (!data.room) return;
+
+        // Detect guest join (waiting → in_progress)
+        if (data.room.status === "in_progress" && state.room.status === "waiting") {
+          setRoom(data.room);
+          setMyColor(data.myColor);
+
+          // Start clocks if timed
+          if (state.isTimed) {
+            state.syncClocks(
+              data.room.whiteTimeMs ?? state.initialWhiteMs ?? 300000,
+              data.room.blackTimeMs ?? state.initialBlackMs ?? 300000,
+              "white",
+            );
           }
-          if (data.room.currentFen && data.room.currentFen !== game.fen()) {
-            game.load(data.room.currentFen);
-            setFen(game.fen());
+        }
+
+        // Sync FEN (opponent's moves via polling)
+        if (data.room.currentFen && data.room.currentFen !== state.game.fen()) {
+          state.game.load(data.room.currentFen);
+          setFen(state.game.fen());
+
+          // Sync clocks from server
+          if (state.isTimed && data.room.whiteTimeMs != null && data.room.blackTimeMs != null) {
+            const turn = state.game.turn() === "w" ? "white" : "black";
+            state.syncClocks(data.room.whiteTimeMs, data.room.blackTimeMs, turn);
           }
+
+          // Check game over
+          if (state.game.isGameOver() && !finishedRef.current) {
+            if (state.game.isCheckmate()) {
+              const winner = state.game.turn() === "w" ? "black" : "white";
+              state.finalizeGame(winner, "checkmate");
+            } else if (state.game.isDraw()) {
+              state.finalizeGame("draw", "stalemate_or_repetition");
+            }
+          }
+        }
+
+        // Detect game completed by opponent (resignation, timeout, etc.)
+        if (data.room.status === "completed" && !finishedRef.current) {
+          finishedRef.current = true;
+          state.stopClocks();
+          const isWhite = state.myColor === "white";
+          const result = data.room.result;
+          const myResult =
+            result === "draw"
+              ? "draw"
+              : (result === "white" && isWhite) || (result === "black" && !isWhite)
+              ? "win"
+              : "loss";
+          setGameOverResult(myResult);
+          setGameOverReason(data.room.resultReason ?? "unknown");
+          setSaveStatus("saved");
         }
       } catch {
         // fail silently on background poll
       }
-    }, 6000);
+    }, pollIntervalMs);
 
     return () => clearInterval(interval);
-  }, [roomCode, room.status, game]);
+  }, [roomCode, pusherAvailable]);
 
   // Disconnect timer countdown
   useEffect(() => {
@@ -807,6 +885,7 @@ export function OnlineChessGame({
               saveStatus={saveStatus}
               ratingChange={ratingChange}
               onPlayAgain={onExit}
+              onExit={onExit}
               isOverlay
             />
           )}

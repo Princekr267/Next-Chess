@@ -1,4 +1,5 @@
 import React from "react";
+import { LogOut } from "lucide-react";
 
 interface GameResultCardProps {
   result: "win" | "loss" | "draw" | null;
@@ -6,6 +7,7 @@ interface GameResultCardProps {
   session: any;
   saveStatus: "idle" | "saving" | "saved" | "error";
   onPlayAgain: () => void;
+  onExit?: () => void;
   ratingChange?: { before: number; after: number } | null;
   className?: string;
   isOverlay?: boolean;
@@ -17,6 +19,7 @@ export function GameResultCard({
   session,
   saveStatus,
   onPlayAgain,
+  onExit,
   ratingChange = null,
   className = "",
   isOverlay = false,
@@ -61,13 +64,26 @@ export function GameResultCard({
             Couldn't save match — try again.
           </p>
         )}
-        <button
-          type="button"
-          onClick={onPlayAgain}
-          className="camp-btn camp-btn-ember text-xs py-2 px-5 font-black"
-        >
-          Play Again
-        </button>
+        <div className="flex items-center justify-center gap-2 mt-3 flex-wrap">
+          <button
+            type="button"
+            onClick={onPlayAgain}
+            className="camp-btn camp-btn-yellow text-xs py-2 px-4 font-black flex items-center gap-1.5"
+          >
+            <span>↺</span>
+            <span>Play Again</span>
+          </button>
+          {onExit && (
+            <button
+              type="button"
+              onClick={onExit}
+              className="camp-btn camp-btn-slate text-xs py-2 px-4 font-black flex items-center gap-1.5"
+            >
+              <LogOut className="w-3.5 h-3.5" />
+              <span>Exit Game</span>
+            </button>
+          )}
+        </div>
       </div>
     );
   }
@@ -103,13 +119,26 @@ export function GameResultCard({
         </p>
       )}
 
-      <button
-        type="button"
-        onClick={onPlayAgain}
-        className="mt-3 camp-btn camp-btn-ember text-xs py-1.5 px-4 font-black"
-      >
-        Play Again
-      </button>
+      <div className="flex items-center justify-center gap-2 mt-3 flex-wrap">
+        <button
+          type="button"
+          onClick={onPlayAgain}
+          className="camp-btn camp-btn-yellow text-xs py-1.5 px-3.5 font-black flex items-center gap-1.5"
+        >
+          <span>↺</span>
+          <span>Play Again</span>
+        </button>
+        {onExit && (
+          <button
+            type="button"
+            onClick={onExit}
+            className="camp-btn camp-btn-slate text-xs py-1.5 px-3.5 font-black flex items-center gap-1.5"
+          >
+            <LogOut className="w-3.5 h-3.5" />
+            <span>Exit Game</span>
+          </button>
+        )}
+      </div>
     </div>
   );
 }

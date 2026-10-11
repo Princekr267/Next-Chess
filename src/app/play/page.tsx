@@ -99,6 +99,7 @@ function PlayContent() {
       setIsLoadingRoom(true);
       setRoomError(null);
       try {
+        // First, try to get the room state
         const { data } = await axios.get(`/api/rooms/${urlRoomCode}`);
         if (!isMounted) return;
 
@@ -107,23 +108,34 @@ function PlayContent() {
           const isGuest = data.room.guestUserId === session?.user?.id;
 
           if (isHost || isGuest) {
+            // Already a participant — load directly
             setCurrentRoom(data.room);
             setCurrentRole(data.myRole);
             setCurrentColor(data.myColor);
-          } else if (data.room.status === "waiting") {
-            // Join as guest automatically
-            const joinRes = await axios.post(`/api/rooms/${urlRoomCode}/join`);
-            if (!isMounted) return;
-            setCurrentRoom(joinRes.data.room);
-            setCurrentRole(joinRes.data.myRole);
-            setCurrentColor(joinRes.data.myColor);
-          } else {
-            setRoomError("This duel room is already in progress or completed.");
+            return;
           }
         }
+
+        // Not a participant yet — try to join (works for "waiting" rooms,
+        // and the join endpoint handles idempotency for already-joined users)
+        const joinRes = await axios.post(`/api/rooms/${urlRoomCode}/join`);
+        if (!isMounted) return;
+        setCurrentRoom(joinRes.data.room);
+        setCurrentRole(joinRes.data.myRole);
+        setCurrentColor(joinRes.data.myColor);
       } catch (err: any) {
         if (!isMounted) return;
-        setRoomError(err.response?.data?.error ?? "Failed to join room via invite link.");
+        // If GET failed (e.g. 403), try direct join as last resort
+        try {
+          const joinRes = await axios.post(`/api/rooms/${urlRoomCode}/join`);
+          if (!isMounted) return;
+          setCurrentRoom(joinRes.data.room);
+          setCurrentRole(joinRes.data.myRole);
+          setCurrentColor(joinRes.data.myColor);
+        } catch (joinErr: any) {
+          if (!isMounted) return;
+          setRoomError(joinErr.response?.data?.error ?? "Failed to join room via invite link.");
+        }
       } finally {
         if (isMounted) setIsLoadingRoom(false);
       }

@@ -134,16 +134,20 @@ export async function POST(
     });
   }
 
-  // Broadcast the result to both players
-  const pusher = getPusherServer();
-  await pusher.trigger(`presence-room-${upperCode}`, "game-ended", {
-    result,
-    reason: reason ?? null,
-    whiteRatingBefore,
-    whiteRatingAfter,
-    blackRatingBefore,
-    blackRatingAfter,
-  });
+  // Broadcast the result to both players (non-fatal)
+  try {
+    const pusher = getPusherServer();
+    await pusher.trigger(`presence-room-${upperCode}`, "game-ended", {
+      result,
+      reason: reason ?? null,
+      whiteRatingBefore,
+      whiteRatingAfter,
+      blackRatingBefore,
+      blackRatingAfter,
+    });
+  } catch (err) {
+    console.error("[rooms/finish] Pusher trigger failed (non-fatal):", err);
+  }
 
   return NextResponse.json({
     ok: true,

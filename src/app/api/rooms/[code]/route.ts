@@ -19,10 +19,12 @@ export async function GET(
     return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
   }
 
+  const upperCode = code.trim().toUpperCase();
+
   const [room] = await db
     .select()
     .from(gameRooms)
-    .where(eq(gameRooms.code, code.toUpperCase()));
+    .where(eq(gameRooms.code, upperCode));
 
   if (!room) {
     return NextResponse.json({ error: "Room not found" }, { status: 404 });
