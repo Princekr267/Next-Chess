@@ -14,11 +14,15 @@ import {
   LogOut,
   Flag,
   Handshake,
+  Maximize2,
+  Minimize2,
+  History,
   AlertCircle,
   Wifi,
   WifiOff,
   Loader2,
   Sparkles,
+  X,
 } from "lucide-react";
 
 import { customPieces } from "./pieces";
@@ -32,6 +36,8 @@ import { PlayerCard } from "./PlayerCard";
 import { ChessClock, useChessClocks } from "./ChessClock";
 import { PromotionModal, PromotionPiece } from "./PromotionModal";
 import { GameResultCard } from "./GameResultCard";
+import { MoveHistory } from "./MoveHistory";
+import { BoardWithCoordinates } from "./BoardWithCoordinates";
 import { getPusherClient } from "@/lib/pusher-client";
 
 interface OnlineChessGameProps {
@@ -57,7 +63,15 @@ export function OnlineChessGame({
 
   // Board state
   const [fen, setFen] = useState(() => initialRoom?.currentFen || game.fen());
+  const [moves, setMoves] = useState<string[]>(() => game.history());
   const [selectedSquare, setSelectedSquare] = useState<Square | null>(null);
+
+  // Responsive & fullscreen states
+  const gameWrapperRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+  const [showMobileHistory, setShowMobileHistory] = useState(false);
 
   // Connection & presence state
   const [isConnected, setIsConnected] = useState(false);
@@ -68,8 +82,9 @@ export function OnlineChessGame({
   const [copiedCode, setCopiedCode] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
 
-  // Modals & interaction
+  // Action confirmations
   const [confirmResign, setConfirmResign] = useState(false);
+  const [confirmExit, setConfirmExit] = useState(false);
   const [drawOfferReceived, setDrawOfferReceived] = useState(false);
   const [drawOfferSent, setDrawOfferSent] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
@@ -103,17 +118,78 @@ export function OnlineChessGame({
     stopClocks,
   } = useChessClocks(initialWhiteMs, initialBlackMs, incrementMs);
 
-  // Load initial FEN into chess.js
+  // Responsive window resize listener
   useEffect(() => {
+    function handleResize() {
+      setIsMobile(window.innerWidth < 768);
+    }
+    handleResize();
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
+
+  // Fullscreen listeners
+  useEffect(() => {
+    function onFullscreenChange() {
+      const isNowFullscreen = !!(
+        document.fullscreenElement ||
+        (document as any).webkitFullscreenElement ||
+        (document as any).mozFullScreenElement ||
+        (document as any).msFullscreenElement
+      );
+      setIsFullscreen(isNowFullscreen);
+    }
+
+    document.addEventListener("fullscreenchange", onFullscreenChange);
+    document.addEventListener("webkitfullscreenchange", onFullscreenChange);
+    document.addEventListener("mozfullscreenchange", onFullscreenChange);
+    document.addEventListener("MSFullscreenChange", onFullscreenChange);
+
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape" && isFullscreen) {
+        setIsFullscreen(false);
+      }
+    }
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.removeEventListener("fullscreenchange", onFullscreenChange);
+      document.removeEventListener("webkitfullscreenchange", onFullscreenChange);
+      document.removeEventListener("mozfullscreenchange", onFullscreenChange);
+      document.removeEventListener("MSFullscreenChange", onFullscreenChange);
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isFullscreen]);
+
+  // Clean up fullscreen on unmount
+  useEffect(() => {
+    return () => {
+      if (typeof document !== "undefined" && document.fullscreenElement) {
+        document.exitFullscreen().catch(() => {});
+      }
+    };
+  }, []);
+
+  // Load initial FEN or PGN into chess.js
+  useEffect(() => {
+    if (initialRoom?.pgn) {
+      try {
+        game.loadPgn(initialRoom.pgn);
+        setFen(game.fen());
+        setMoves(game.history());
+        return;
+      } catch {}
+    }
     if (initialRoom?.currentFen) {
       try {
         game.load(initialRoom.currentFen);
         setFen(game.fen());
+        setMoves(game.history());
       } catch (err) {
         console.warn("Failed to load initial FEN", err);
       }
     }
-  }, [initialRoom?.currentFen, game]);
+  }, [initialRoom?.currentFen, initialRoom?.pgn, game]);
 
   // Handle timeout on local player's turn
   const handleTimeout = useCallback(async () => {
@@ -187,7 +263,6 @@ export function OnlineChessGame({
 
       channel.bind("pusher:subscription_succeeded", (members: any) => {
         setIsConnected(true);
-        // If 2 members in room, opponent is online
         setOpponentOnline(members.count >= 2);
       });
 
@@ -240,6 +315,7 @@ export function OnlineChessGame({
 
           if (moveResult) {
             setFen(game.fen());
+            setMoves(game.history());
             setSelectedSquare(null);
 
             // Switch clock to our turn
@@ -335,7 +411,7 @@ export function OnlineChessGame({
     syncClocks,
   ]);
 
-  // Periodic recovery fallback — also serves as primary sync when Pusher is unavailable
+  // Polling fallback ref with constant dependencies
   const pusherAvailable = !!getPusherClient();
   const latestStateRef = useRef({
     room,
@@ -388,10 +464,19 @@ export function OnlineChessGame({
           }
         }
 
-        // Sync FEN (opponent's moves via polling)
+        // Sync FEN & PGN (opponent's moves via polling)
         if (data.room.currentFen && data.room.currentFen !== state.game.fen()) {
-          state.game.load(data.room.currentFen);
+          if (data.room.pgn) {
+            try {
+              state.game.loadPgn(data.room.pgn);
+            } catch {
+              state.game.load(data.room.currentFen);
+            }
+          } else {
+            state.game.load(data.room.currentFen);
+          }
           setFen(state.game.fen());
+          setMoves(state.game.history());
 
           // Sync clocks from server
           if (state.isTimed && data.room.whiteTimeMs != null && data.room.blackTimeMs != null) {
@@ -454,7 +539,7 @@ export function OnlineChessGame({
     return () => clearInterval(t);
   }, [disconnectTimer, finalizeGame, myColor, room.status]);
 
-  // Move submission
+  // Move submission to server
   async function submitMove(from: string, to: string, promotion?: string) {
     const nextFen = game.fen();
     const nextPgn = game.pgn();
@@ -476,23 +561,20 @@ export function OnlineChessGame({
         promotion,
         fen: nextFen,
         pgn: nextPgn,
-        whiteTimeMs: whiteMs,
-        blackTimeMs: blackMs,
       });
-    } catch (err) {
-      console.error("Failed to relay move to server", err);
+    } catch (err: any) {
+      console.error("Move failed to post", err);
     }
   }
 
-  // Promotion handling
+  // Promotion detection helper
   function isPromotionMove(from: string, to: string): boolean {
     const piece = game.get(from as Square);
     if (!piece || piece.type !== "p") return false;
-    if (piece.color === "w" && !to.endsWith("8")) return false;
-    if (piece.color === "b" && !to.endsWith("1")) return false;
-
-    const legalMoves = game.moves({ square: from as Square, verbose: true });
-    return legalMoves.some((m) => m.to === to && !!m.promotion);
+    const isPawnPromotion =
+      (piece.color === "w" && to[1] === "8") ||
+      (piece.color === "b" && to[1] === "1");
+    return isPawnPromotion;
   }
 
   function handleSelectPromotionPiece(pieceChoice: PromotionPiece) {
@@ -503,6 +585,7 @@ export function OnlineChessGame({
       const move = game.move({ from, to, promotion: pieceChoice });
       if (move) {
         setFen(game.fen());
+        setMoves(game.history());
         setSelectedSquare(null);
         const byColor = move.color === "w" ? "white" : "black";
         onMoveMade(byColor);
@@ -544,6 +627,7 @@ export function OnlineChessGame({
       if (!move) return false;
 
       setFen(game.fen());
+      setMoves(game.history());
       setSelectedSquare(null);
       const byColor = move.color === "w" ? "white" : "black";
       onMoveMade(byColor);
@@ -576,6 +660,7 @@ export function OnlineChessGame({
         const move = game.move({ from: selectedSquare, to: clicked });
         if (move) {
           setFen(game.fen());
+          setMoves(game.history());
           setSelectedSquare(null);
           const byColor = move.color === "w" ? "white" : "black";
           onMoveMade(byColor);
@@ -629,6 +714,11 @@ export function OnlineChessGame({
 
   // Resignation action
   async function handleResign() {
+    if (!confirmResign) {
+      setConfirmResign(true);
+      setTimeout(() => setConfirmResign(false), 5000);
+      return;
+    }
     setConfirmResign(false);
     const winner = myColor === "white" ? "black" : "white";
     try {
@@ -637,6 +727,44 @@ export function OnlineChessGame({
       });
     } catch {}
     await finalizeGame(winner, "resignation");
+  }
+
+  // Exit match action
+  function handleExitGame() {
+    if (!confirmExit) {
+      setConfirmExit(true);
+      setTimeout(() => setConfirmExit(false), 4000);
+      return;
+    }
+    setConfirmExit(false);
+    onExit();
+  }
+
+  async function toggleFullscreen() {
+    try {
+      if (!isFullscreen) {
+        const el = gameWrapperRef.current || document.documentElement;
+        if (el.requestFullscreen) {
+          await el.requestFullscreen();
+        } else if ((el as any).webkitRequestFullscreen) {
+          await (el as any).webkitRequestFullscreen();
+        } else if ((el as any).msRequestFullscreen) {
+          await (el as any).msRequestFullscreen();
+        } else {
+          setIsFullscreen(true);
+        }
+      } else {
+        if (document.fullscreenElement || (document as any).webkitFullscreenElement) {
+          if (document.exitFullscreen) await document.exitFullscreen();
+          else if ((document as any).webkitExitFullscreen) await (document as any).webkitExitFullscreen();
+          else if ((document as any).msExitFullscreen) await (document as any).msExitFullscreen();
+        }
+        setIsFullscreen(false);
+      }
+    } catch (err) {
+      console.warn("Fullscreen toggle fallback:", err);
+      setIsFullscreen((prev) => !prev);
+    }
   }
 
   function handleCopy(text: string, isLink: boolean) {
@@ -650,7 +778,7 @@ export function OnlineChessGame({
     }
   }
 
-  // Square highlighting
+  // Highlight squares
   const customSquareStyles = useMemo(() => {
     return buildSquareStyles(selectedSquare, game, pendingPromotion);
   }, [game, selectedSquare, pendingPromotion]);
@@ -663,8 +791,123 @@ export function OnlineChessGame({
 
   const isMyTurn =
     (game.turn() === "w" && myColor === "white") || (game.turn() === "b" && myColor === "black");
+  const isOpponentTurn = !isMyTurn && room.status === "in_progress" && !gameOverResult;
+  const isCheck = game.inCheck() && !gameOverResult;
+  const currentTurnLabel = game.turn() === "w" ? "White" : "Black";
 
-  // ── 1. WAITING ROOM VIEW ──────────────────────────────────────────────────
+  // Shared board renderer with external border coordinates
+  const renderBoard = (style?: React.CSSProperties) => (
+    <div
+      ref={containerRef}
+      className="w-full shrink-0 touch-none select-none"
+      style={{ margin: "0 auto", ...style }}
+    >
+      <BoardWithCoordinates orientation={myColor}>
+        <Chessboard
+          options={{
+            id: `online-board-${roomCode}`,
+            position: fen,
+            boardOrientation: myColor,
+            onPieceDrop,
+            onSquareClick,
+            squareStyles: customSquareStyles,
+            pieces: customPieces,
+            boardStyle: {
+              borderRadius: "8px",
+              boxShadow: "inset 0 0 8px rgba(0,0,0,0.6), 0 4px 18px rgba(0,0,0,0.45)",
+              overflow: "hidden",
+              aspectRatio: "1 / 1",
+              touchAction: "none",
+            },
+            darkSquareStyle,
+            lightSquareStyle,
+            dropSquareStyle,
+            animationDurationInMs: 180,
+            showNotation: false, // clean squares: coordinates rendered on outside wooden border!
+          }}
+        />
+      </BoardWithCoordinates>
+    </div>
+  );
+
+  // Promotion Selection Modal
+  const renderPromotionModal = () => (
+    <PromotionModal
+      isOpen={!!pendingPromotion}
+      color={pendingPromotion?.color || "w"}
+      fromSquare={pendingPromotion?.from || ""}
+      toSquare={pendingPromotion?.to || ""}
+      onSelectPiece={handleSelectPromotionPiece}
+      onCancel={() => setPendingPromotion(null)}
+    />
+  );
+
+  // Draw Offer Banner
+  const renderDrawOfferBanner = () => (
+    <AnimatePresence>
+      {drawOfferReceived && (
+        <motion.div
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          exit={{ opacity: 0, scale: 0.95 }}
+          className="w-full p-3.5 bg-purple-100 border-2 border-purple-800 rounded-xl flex items-center justify-between gap-3 shadow-[3px_3px_0px_#000]"
+        >
+          <span className="text-xs sm:text-sm font-black text-purple-950 flex items-center gap-2">
+            <Handshake className="w-5 h-5 text-purple-700" /> Opponent offered a draw!
+          </span>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={handleAcceptDraw}
+              className="camp-btn camp-btn-yellow py-1 px-3 text-xs font-black shadow-[1px_1px_0px_#000]"
+            >
+              Accept
+            </button>
+            <button
+              type="button"
+              onClick={handleDeclineDraw}
+              className="camp-btn camp-btn-slate py-1 px-3 text-xs font-bold shadow-[1px_1px_0px_#000]"
+            >
+              Decline
+            </button>
+          </div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
+
+  // Status & Disconnect Alerts
+  const renderAlerts = () => (
+    <AnimatePresence>
+      {disconnectTimer !== null && (
+        <motion.div
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -10 }}
+          className="w-full p-3 bg-amber-500/95 text-amber-950 border border-amber-900 rounded-xl text-xs sm:text-sm font-black flex items-center justify-between shadow-[2px_2px_0px_#000]"
+        >
+          <span className="flex items-center gap-2">
+            <WifiOff className="w-4 h-4" /> Opponent disconnected. Auto-win in {disconnectTimer}s...
+          </span>
+        </motion.div>
+      )}
+
+      {statusMessage && (
+        <motion.div
+          initial={{ opacity: 0, y: -5 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0 }}
+          className="w-full p-2 bg-amber-100 border border-amber-700 rounded-lg text-xs font-bold text-amber-950 text-center"
+        >
+          {statusMessage}
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // 1. WAITING ROOM VIEW
+  // ══════════════════════════════════════════════════════════════════════════
   if (room.status === "waiting") {
     const inviteUrl =
       typeof window !== "undefined"
@@ -678,7 +921,6 @@ export function OnlineChessGame({
           animate={{ opacity: 1, scale: 1 }}
           className="camp-card-canvas max-w-lg w-full p-8 text-center"
         >
-          {/* Top radar icon */}
           <div className="relative w-16 h-16 rounded-2xl bg-purple-400 flex items-center justify-center mx-auto mb-4 text-black shadow-[3px_3px_8px_rgba(28,18,6,0.35)]">
             <Swords className="w-8 h-8" />
             <span className="absolute -top-1 -right-1 flex h-4 w-4">
@@ -754,232 +996,655 @@ export function OnlineChessGame({
     );
   }
 
-  // ── 2. ACTIVE CHESS ARENA VIEW ──────────────────────────────────────────
-  return (
-    <div className="w-full max-w-4xl mx-auto px-2 sm:px-4 py-2 flex flex-col items-center">
-      {/* Top Banner Alert (Opponent disconnected / Draw offer) */}
-      <AnimatePresence>
-        {disconnectTimer !== null && (
-          <motion.div
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -10 }}
-            className="w-full mb-3 p-3 bg-amber-500/90 text-amber-950 border border-amber-900 rounded-xl text-xs sm:text-sm font-black flex items-center justify-between shadow-[2px_2px_0px_#000]"
-          >
-            <span className="flex items-center gap-2">
-              <WifiOff className="w-4 h-4" /> Opponent disconnected. Auto-win in {disconnectTimer}s if they don't reconnect...
-            </span>
-          </motion.div>
-        )}
-
-        {drawOfferReceived && (
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="w-full mb-3 p-3.5 bg-purple-100 border-2 border-purple-800 rounded-xl flex items-center justify-between gap-3 shadow-[3px_3px_0px_#000]"
-          >
-            <span className="text-xs sm:text-sm font-black text-purple-950 flex items-center gap-2">
-              <Handshake className="w-5 h-5 text-purple-700" /> Opponent offered a draw!
-            </span>
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={handleAcceptDraw}
-                className="camp-btn camp-btn-ember py-1 px-3 text-xs font-black"
-              >
-                Accept Draw
-              </button>
-              <button
-                type="button"
-                onClick={handleDeclineDraw}
-                className="camp-btn camp-btn-white py-1 px-3 text-xs font-bold text-gray-800"
-              >
-                Decline
-              </button>
-            </div>
-          </motion.div>
-        )}
-
-        {statusMessage && (
-          <motion.div
-            initial={{ opacity: 0, y: -5 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0 }}
-            className="w-full mb-2 p-2 bg-amber-100 border border-amber-700 rounded-lg text-xs font-bold text-amber-950 text-center"
-          >
-            {statusMessage}
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Main Arena Layout */}
-      <div className="w-full flex flex-col items-center">
-        {/* Opponent Card & Clock */}
-        <div className="w-full max-w-[540px] flex items-center justify-between gap-3 mb-2">
-          <div className="flex-1">
+  // ══════════════════════════════════════════════════════════════════════════
+  // 2. MOBILE FULLSCREEN VIEW
+  // ══════════════════════════════════════════════════════════════════════════
+  if (isFullscreen && isMobile) {
+    return (
+      <div
+        ref={gameWrapperRef}
+        className="fixed inset-0 z-50 bg-[#1c1208] p-2 flex flex-col justify-between items-center w-full h-[100svh] overflow-hidden select-none touch-none"
+        style={{
+          backgroundImage:
+            "radial-gradient(ellipse at center, rgba(67, 52, 30, 0.45) 0%, rgba(24, 14, 6, 0.95) 100%)",
+        }}
+      >
+        {/* Top: Opponent Info & Fullscreen toggle */}
+        <div className="w-full flex items-center justify-between gap-2 px-1 py-1">
+          <div className="min-w-0 flex-1">
             <PlayerCard
               color={opponentColor}
               name={opponentName}
-              onNameChange={() => {}}
-              isTurn={!isMyTurn && room.status === "in_progress" && !gameOverResult}
+              isTurn={isOpponentTurn}
               isCompact
+              inputId="opponent-mobile-fs"
+              accessorySlot={
+                isTimed ? (
+                  <ChessClock
+                    timeMs={opponentColor === "white" ? whiteMs : blackMs}
+                    isActive={activeClock === opponentColor && room.status === "in_progress" && !gameOverResult}
+                    color={opponentColor}
+                    compact
+                  />
+                ) : undefined
+              }
             />
           </div>
-          {isTimed && (
-            <ChessClock
-              timeMs={opponentColor === "white" ? whiteMs : blackMs}
-              isActive={activeClock === opponentColor && room.status === "in_progress" && !gameOverResult}
-              color={opponentColor}
-              compact
-            />
-          )}
+
+          <div className="flex items-center gap-1.5 shrink-0">
+            <span className="camp-badge camp-badge-violet text-[10px] px-2 py-0.5">
+              ⚔️ Duel
+            </span>
+            <span
+              className={`camp-badge text-[11px] px-2.5 py-1 ${
+                currentTurnLabel === "White" ? "camp-badge-yellow" : "camp-badge-slate"
+              }`}
+            >
+              ♟ {currentTurnLabel}
+            </span>
+            {isCheck && (
+              <span className="camp-badge camp-badge-red text-[10px] px-2 py-0.5 animate-bounce">
+                Check!
+              </span>
+            )}
+            <button
+              type="button"
+              onClick={toggleFullscreen}
+              className="camp-btn camp-btn-white text-xs p-1.5 font-black text-stone-900 hover:scale-105 active:scale-95 transition-all"
+              title="Exit Fullscreen"
+            >
+              <Minimize2 className="w-4 h-4" />
+            </button>
+          </div>
         </div>
 
-        {/* Board Container */}
-        <div
-          className="relative rounded-2xl p-2.5 sm:p-3.5 bg-[#2a1b0e] border-4 border-[#4a311a] shadow-[0_12px_36px_rgba(0,0,0,0.65)]"
-          style={{ width: "min(92vw, 540px)", height: "min(92vw, 540px)" }}
-        >
-          <Chessboard
-            options={{
-              id: "online-board",
-              position: fen,
-              boardOrientation: myColor,
-              onPieceDrop,
-              onSquareClick,
-              squareStyles: customSquareStyles,
-              pieces: customPieces,
-              boardStyle: {
-                borderRadius: "8px",
-                boxShadow: "inset 0 0 8px rgba(0,0,0,0.6), 0 4px 18px rgba(0,0,0,0.45)",
-                overflow: "hidden",
-                aspectRatio: "1 / 1",
-                touchAction: "none",
-              },
-              darkSquareStyle,
-              lightSquareStyle,
-              dropSquareStyle,
-              animationDurationInMs: 180,
-              showNotation: true,
-            }}
+        {/* Board */}
+        <div className="flex-1 flex items-center justify-center w-full my-auto overflow-hidden">
+          {renderBoard({ width: "min(98vw, calc(100svh - 150px), 520px)", maxWidth: "100%" })}
+        </div>
+
+        {/* Bottom: Player Info & Actions */}
+        <div className="w-full flex flex-col gap-1.5 px-1 py-1">
+          <div className="w-full flex items-center justify-between gap-2">
+            <div className="min-w-0 flex-1">
+              <PlayerCard
+                color={myColor}
+                name={session?.user?.name || "You"}
+                isTurn={isMyTurn && room.status === "in_progress" && !gameOverResult}
+                isCompact
+                isYou
+                inputId="you-mobile-fs"
+                accessorySlot={
+                  isTimed ? (
+                    <ChessClock
+                      timeMs={myColor === "white" ? whiteMs : blackMs}
+                      isActive={activeClock === myColor && room.status === "in_progress" && !gameOverResult}
+                      onTimeout={handleTimeout}
+                      color={myColor}
+                      compact
+                    />
+                  ) : undefined
+                }
+              />
+            </div>
+          </div>
+
+          {/* Action Row on Mobile Fullscreen */}
+          <div className="flex items-center gap-1.5 justify-between">
+            <button
+              type="button"
+              disabled={drawOfferSent || !!gameOverResult || room.status !== "in_progress"}
+              onClick={handleSendDrawOffer}
+              className="camp-btn camp-btn-slate text-xs py-1.5 px-2.5 font-black flex items-center gap-1 disabled:opacity-40"
+              title="Offer mutual draw"
+            >
+              <Handshake className="w-3.5 h-3.5" />
+              <span>{drawOfferSent ? "Offered" : "Draw"}</span>
+            </button>
+
+            <button
+              type="button"
+              disabled={!!gameOverResult || room.status !== "in_progress"}
+              onClick={handleResign}
+              className={`camp-btn text-xs py-1.5 px-2.5 font-black flex items-center gap-1 disabled:opacity-40 ${
+                confirmResign ? "camp-btn-red bg-rose-600 text-white animate-pulse" : "camp-btn-slate"
+              }`}
+              title="Resign game"
+            >
+              <Flag className="w-3.5 h-3.5" />
+              <span>{confirmResign ? "Confirm?" : "Resign"}</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setShowMobileHistory((prev) => !prev)}
+              className="camp-btn camp-btn-slate text-xs py-1.5 px-2.5 font-black flex items-center gap-1"
+              title="View moves"
+            >
+              <History className="w-3.5 h-3.5" />
+              <span>{moves.length}</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={handleExitGame}
+              className={`camp-btn text-xs py-1.5 px-2.5 font-black flex items-center gap-1 ${
+                confirmExit ? "camp-btn-red bg-rose-600 text-white animate-pulse" : "camp-btn-slate"
+              }`}
+              title="Exit match"
+            >
+              <LogOut className="w-3.5 h-3.5" />
+              <span>{confirmExit ? "Confirm?" : "Exit"}</span>
+            </button>
+          </div>
+        </div>
+
+        {renderDrawOfferBanner()}
+        {renderAlerts()}
+        {renderPromotionModal()}
+
+        {showMobileHistory && (
+          <MoveHistory
+            moves={moves}
+            isMobileDrawer
+            onCloseDrawer={() => setShowMobileHistory(false)}
+          />
+        )}
+
+        {gameOverResult && (
+          <GameResultCard
+            result={gameOverResult}
+            reason={gameOverReason}
+            session={session}
+            saveStatus={saveStatus}
+            onPlayAgain={onExit}
+            onExit={onExit}
+            ratingChange={ratingChange}
+            isOverlay
+          />
+        )}
+      </div>
+    );
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // 3. DESKTOP FULLSCREEN ARENA
+  // ══════════════════════════════════════════════════════════════════════════
+  if (isFullscreen && !isMobile) {
+    return (
+      <div
+        ref={gameWrapperRef}
+        className="fixed inset-0 z-50 bg-[#191007] p-4 sm:p-6 lg:p-8 flex flex-row items-center justify-center gap-8 lg:gap-10 overflow-y-auto w-full min-h-screen"
+        style={{
+          backgroundImage:
+            "radial-gradient(circle at center, rgba(67, 52, 30, 0.4) 0%, rgba(20, 12, 5, 0.98) 100%)",
+        }}
+      >
+        {/* Left: Massive Board */}
+        <div className="flex flex-col items-center gap-3">
+          <PlayerCard
+            color={opponentColor}
+            name={opponentName}
+            isTurn={isOpponentTurn}
+            inputId="opponent-fs"
+            className="max-w-[min(90vh,calc(100vw-420px),820px)]"
+            accessorySlot={
+              isTimed ? (
+                <ChessClock
+                  timeMs={opponentColor === "white" ? whiteMs : blackMs}
+                  isActive={activeClock === opponentColor && room.status === "in_progress" && !gameOverResult}
+                  color={opponentColor}
+                />
+              ) : undefined
+            }
           />
 
-          {/* Promotion Modal */}
-          {pendingPromotion && (
-            <PromotionModal
-              isOpen={true}
-              color={pendingPromotion.color}
-              fromSquare={pendingPromotion.from}
-              toSquare={pendingPromotion.to}
-              onSelectPiece={handleSelectPromotionPiece}
-              onCancel={() => setPendingPromotion(null)}
-            />
-          )}
+          {renderBoard({ width: "min(84vh, calc(100vw - 420px), 820px)", maxWidth: "100%" })}
 
-          {/* Game Result Overlay */}
+          <PlayerCard
+            color={myColor}
+            name={session?.user?.name || "You"}
+            isTurn={isMyTurn && room.status === "in_progress" && !gameOverResult}
+            isYou
+            inputId="you-fs"
+            className="max-w-[min(90vh,calc(100vw-420px),820px)]"
+            accessorySlot={
+              isTimed ? (
+                <ChessClock
+                  timeMs={myColor === "white" ? whiteMs : blackMs}
+                  isActive={activeClock === myColor && room.status === "in_progress" && !gameOverResult}
+                  onTimeout={handleTimeout}
+                  color={myColor}
+                />
+              ) : undefined
+            }
+          />
+        </div>
+
+        {/* Right: Side Dashboard */}
+        <div className="w-84 lg:w-96 flex flex-col gap-4 shrink-0 max-h-[92vh] justify-between">
+          <div
+            className="rounded-2xl p-4 bg-[#261a0e]/95 border border-[#48331d]/60 flex flex-col gap-3"
+            style={{
+              boxShadow: "4px 4px 14px rgba(24,14,5,0.4), inset -3px -3px 8px rgba(24,14,5,0.3), inset 3px 3px 8px rgba(255,215,130,0.06)",
+            }}
+          >
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <span className="text-[11px] font-black uppercase tracking-wider text-amber-200/60">
+                  Fullscreen Arena
+                </span>
+                <span className="camp-badge camp-badge-violet text-[10px] px-2 py-0.5">
+                  ⚔️ Friend Duel
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={toggleFullscreen}
+                title="Exit Fullscreen (Esc)"
+                className="camp-btn camp-btn-white text-xs py-1 px-3 font-black flex items-center gap-1.5 text-stone-950 hover:scale-105 active:scale-95 transition-all"
+              >
+                <Minimize2 className="w-3.5 h-3.5" />
+                <span>Exit Fullscreen</span>
+              </button>
+            </div>
+
+            {/* Turn Banner */}
+            <div className="flex items-center justify-between gap-3 p-3 rounded-xl bg-[#181008] border border-amber-950">
+              <div className="flex items-center gap-2.5">
+                <div
+                  className={`w-9 h-9 rounded-xl flex items-center justify-center text-base font-black ${
+                    currentTurnLabel === "White"
+                      ? "bg-amber-300 text-amber-950"
+                      : "bg-[#100a05] text-amber-100 border border-amber-900/50"
+                  }`}
+                >
+                  {currentTurnLabel === "White" ? "♙" : "♟"}
+                </div>
+                <div>
+                  <div className="text-sm font-black text-amber-100">
+                    {currentTurnLabel}&apos;s Turn
+                  </div>
+                  <div className="text-[11px] font-medium text-amber-300/70">
+                    {isMyTurn ? "Your turn to move" : `${opponentName}'s turn`}
+                  </div>
+                </div>
+              </div>
+
+              {isCheck && (
+                <span className="camp-badge camp-badge-red text-xs px-2.5 py-1 animate-bounce">
+                  ⚠️ Check!
+                </span>
+              )}
+            </div>
+
+            {renderDrawOfferBanner()}
+            {renderAlerts()}
+          </div>
+
+          {/* Move History */}
+          <MoveHistory moves={moves} className="flex-1 min-h-[220px]" />
+
+          {/* Action Buttons Panel */}
+          <div
+            className="rounded-2xl p-3.5 bg-[#261a0e]/95 border border-[#48331d]/60 flex flex-col gap-2.5"
+            style={{
+              boxShadow: "4px 4px 14px rgba(24,14,5,0.4), inset -3px -3px 8px rgba(24,14,5,0.3), inset 3px 3px 8px rgba(255,215,130,0.06)",
+            }}
+          >
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                disabled={drawOfferSent || !!gameOverResult || room.status !== "in_progress"}
+                onClick={handleSendDrawOffer}
+                className="camp-btn camp-btn-slate text-xs py-2.5 px-3 font-black flex items-center justify-center gap-1.5 disabled:opacity-40"
+              >
+                <Handshake className="w-3.5 h-3.5" />
+                <span>{drawOfferSent ? "Draw Offered" : "Offer Draw"}</span>
+              </button>
+
+              <button
+                type="button"
+                disabled={!!gameOverResult || room.status !== "in_progress"}
+                onClick={handleResign}
+                className={`camp-btn text-xs py-2.5 px-3 font-black flex items-center justify-center gap-1.5 transition-all disabled:opacity-40 ${
+                  confirmResign ? "camp-btn-red bg-rose-600 text-white animate-pulse" : "camp-btn-slate"
+                }`}
+              >
+                <Flag className="w-3.5 h-3.5" />
+                <span>{confirmResign ? "Confirm Resign?" : "Resign"}</span>
+              </button>
+            </div>
+
+            <button
+              type="button"
+              onClick={handleExitGame}
+              className={`camp-btn w-full text-xs py-2.5 px-3 font-black flex items-center justify-center gap-1.5 transition-all ${
+                confirmExit ? "camp-btn-red bg-rose-600 text-white animate-pulse" : "camp-btn-yellow"
+              }`}
+            >
+              <LogOut className="w-3.5 h-3.5" />
+              <span>{confirmExit ? "Confirm Exit Room?" : "Exit Match"}</span>
+            </button>
+          </div>
+
           {gameOverResult && (
             <GameResultCard
               result={gameOverResult}
               reason={gameOverReason}
               session={session}
               saveStatus={saveStatus}
-              ratingChange={ratingChange}
               onPlayAgain={onExit}
               onExit={onExit}
-              isOverlay
+              ratingChange={ratingChange}
             />
           )}
         </div>
 
-        {/* Local Player Card & Clock */}
-        <div className="w-full max-w-[540px] flex items-center justify-between gap-3 mt-2">
-          <div className="flex-1">
-            <PlayerCard
-              color={myColor}
-              name={session?.user?.name || "You"}
-              onNameChange={() => {}}
-              isTurn={isMyTurn && room.status === "in_progress" && !gameOverResult}
-              isYou
-              isCompact
-            />
-          </div>
-          {isTimed && (
-            <ChessClock
-              timeMs={myColor === "white" ? whiteMs : blackMs}
-              isActive={activeClock === myColor && room.status === "in_progress" && !gameOverResult}
-              onTimeout={handleTimeout}
-              color={myColor}
-              compact
-            />
-          )}
-        </div>
+        {renderPromotionModal()}
+      </div>
+    );
+  }
 
-        {/* Bottom Duel Controls */}
-        <div className="w-full max-w-[540px] flex items-center justify-between mt-4 pt-3 border-t border-amber-900/30">
-          <div className="flex items-center gap-2">
-            <span className="text-[11px] font-mono font-black text-amber-400 bg-amber-950/60 px-2.5 py-1 rounded-lg border border-amber-800/40">
-              ROOM: {roomCode}
-            </span>
-            <span
-              className={`w-2.5 h-2.5 rounded-full ${
-                isConnected ? "bg-emerald-400 shadow-[0_0_8px_#34d399]" : "bg-rose-500"
-              }`}
-              title={isConnected ? "Real-time socket active" : "Connecting..."}
-            />
+  // ══════════════════════════════════════════════════════════════════════════
+  // 4. RESPONSIVE PLAY ARENA (Desktop 2-Column + Mobile Single-Column)
+  // ══════════════════════════════════════════════════════════════════════════
+  return (
+    <div
+      ref={gameWrapperRef}
+      className="w-full flex flex-col lg:flex-row items-center lg:items-start justify-center gap-6 lg:gap-8 transition-all"
+    >
+      {/* LEFT COLUMN: Chess Board Arena */}
+      <div className="flex flex-col items-center gap-2.5 w-full max-w-[min(98vw,560px)] shrink-0">
+        {/* Opponent Card with integrated Clock */}
+        <PlayerCard
+          color={opponentColor}
+          name={opponentName}
+          isTurn={isOpponentTurn}
+          inputId="opponent"
+          accessorySlot={
+            isTimed ? (
+              <ChessClock
+                timeMs={opponentColor === "white" ? whiteMs : blackMs}
+                isActive={activeClock === opponentColor && room.status === "in_progress" && !gameOverResult}
+                color={opponentColor}
+                compact
+              />
+            ) : undefined
+          }
+        />
+
+        {/* Board Tray with outer wood coordinates */}
+        {renderBoard({ maxWidth: "min(98vw, 560px)" })}
+
+        {/* Player (You) Card with integrated Clock */}
+        <PlayerCard
+          color={myColor}
+          name={session?.user?.name || "You"}
+          isTurn={isMyTurn && room.status === "in_progress" && !gameOverResult}
+          isYou
+          inputId="you"
+          accessorySlot={
+            isTimed ? (
+              <ChessClock
+                timeMs={myColor === "white" ? whiteMs : blackMs}
+                isActive={activeClock === myColor && room.status === "in_progress" && !gameOverResult}
+                onTimeout={handleTimeout}
+                color={myColor}
+                compact
+              />
+            ) : undefined
+          }
+        />
+
+        {/* Mobile-Only Controls Bar (hidden on desktop lg) */}
+        <div className="w-full lg:hidden flex flex-col gap-2.5 pt-1">
+          {/* Turn status + Check + Moves drawer trigger */}
+          <div className="w-full flex items-center justify-between gap-2 px-1">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span
+                className={`camp-badge text-xs px-3 py-1 ${
+                  currentTurnLabel === "White" ? "camp-badge-yellow" : "camp-badge-slate"
+                }`}
+              >
+                ♟ {currentTurnLabel} to move
+              </span>
+              {isCheck && (
+                <span className="camp-badge camp-badge-red text-xs px-2.5 py-1 animate-bounce">
+                  ⚠️ Check!
+                </span>
+              )}
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setShowMobileHistory(true)}
+              className="camp-btn camp-btn-slate text-xs py-1.5 px-3 font-black flex items-center gap-1.5"
+            >
+              <History className="w-3.5 h-3.5" />
+              <span>Moves ({moves.length})</span>
+            </button>
           </div>
 
-          <div className="flex items-center gap-2">
-            {/* Draw Offer Button */}
+          {/* Alerts on mobile */}
+          {renderDrawOfferBanner()}
+          {renderAlerts()}
+
+          {/* Mobile Buttons Grid */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
             <button
               type="button"
               disabled={drawOfferSent || !!gameOverResult || room.status !== "in_progress"}
               onClick={handleSendDrawOffer}
-              className="camp-btn camp-btn-white text-xs py-1.5 px-3 font-bold text-gray-800 disabled:opacity-40 flex items-center gap-1.5"
+              className="camp-btn camp-btn-slate text-xs py-2 px-3 font-black flex items-center justify-center gap-1.5 disabled:opacity-40"
+              title="Offer mutual draw"
             >
               <Handshake className="w-3.5 h-3.5" />
-              {drawOfferSent ? "Draw Offered" : "Offer Draw"}
+              <span>{drawOfferSent ? "Offered" : "Draw"}</span>
             </button>
-
-            {/* Resign Button */}
-            {!confirmResign ? (
-              <button
-                type="button"
-                disabled={!!gameOverResult || room.status !== "in_progress"}
-                onClick={() => setConfirmResign(true)}
-                className="camp-btn camp-btn-ember text-xs py-1.5 px-3 font-black disabled:opacity-40 flex items-center gap-1.5"
-              >
-                <Flag className="w-3.5 h-3.5" /> Resign
-              </button>
-            ) : (
-              <div className="flex items-center gap-1 animate-in fade-in">
-                <button
-                  type="button"
-                  onClick={handleResign}
-                  className="camp-btn bg-rose-600 text-white text-xs py-1.5 px-3 font-black"
-                >
-                  Confirm Resign?
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setConfirmResign(false)}
-                  className="camp-btn camp-btn-white text-xs py-1.5 px-2 font-bold text-gray-800"
-                >
-                  ✕
-                </button>
-              </div>
-            )}
 
             <button
               type="button"
-              onClick={onExit}
-              className="camp-btn camp-btn-white text-xs py-1.5 px-2.5 font-bold text-gray-800"
-              title="Exit Match"
+              disabled={!!gameOverResult || room.status !== "in_progress"}
+              onClick={handleResign}
+              className={`camp-btn text-xs py-2 px-3 font-black flex items-center justify-center gap-1.5 transition-all disabled:opacity-40 ${
+                confirmResign ? "camp-btn-red bg-rose-600 text-white animate-pulse" : "camp-btn-slate"
+              }`}
+              title="Resign game"
+            >
+              <Flag className="w-3.5 h-3.5" />
+              <span>{confirmResign ? "Confirm?" : "Resign"}</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={toggleFullscreen}
+              className="camp-btn camp-btn-white text-xs py-2 px-3 font-black flex items-center justify-center gap-1.5 text-stone-900"
+              title="Fullscreen Mode"
+            >
+              <Maximize2 className="w-3.5 h-3.5" />
+              <span>Fullscreen</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={handleExitGame}
+              className={`camp-btn text-xs py-2 px-3 font-black flex items-center justify-center gap-1.5 transition-all ${
+                confirmExit ? "camp-btn-red bg-rose-600 text-white animate-pulse" : "camp-btn-slate"
+              }`}
+              title="Exit game"
             >
               <LogOut className="w-3.5 h-3.5" />
+              <span>{confirmExit ? "Confirm?" : "Exit"}</span>
             </button>
           </div>
         </div>
+
+        {/* Mobile Drawer */}
+        {showMobileHistory && (
+          <MoveHistory
+            moves={moves}
+            isMobileDrawer
+            onCloseDrawer={() => setShowMobileHistory(false)}
+          />
+        )}
       </div>
+
+      {/* RIGHT COLUMN: Desktop Game Dashboard & Console (Visible on lg and up) */}
+      <div className="hidden lg:flex flex-col gap-3.5 w-80 xl:w-96 shrink-0">
+        {/* 1. Turn & Match Status Card */}
+        <div
+          className="rounded-2xl p-4 bg-[#261a0e]/95 border border-[#48331d]/60 flex flex-col gap-3"
+          style={{
+            boxShadow:
+              "4px 4px 14px rgba(24,14,5,0.4), inset -3px -3px 8px rgba(24,14,5,0.3), inset 3px 3px 8px rgba(255,215,130,0.06)",
+          }}
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-black uppercase tracking-wider text-amber-200/60">
+              Match Console
+            </span>
+            <div className="flex items-center gap-2">
+              <span className="camp-badge camp-badge-violet text-[10px] px-2 py-0.5">
+                ⚔️ Friend Duel
+              </span>
+              <div
+                className="flex items-center gap-1 text-[11px] font-mono font-black text-amber-300/90 bg-[#160d05] border border-amber-900/40 px-2 py-0.5 rounded-lg cursor-pointer hover:border-amber-400 transition-colors"
+                onClick={() => handleCopy(roomCode, false)}
+                title="Click to copy room code"
+              >
+                <span>{roomCode}</span>
+                {copiedCode ? (
+                  <Check className="w-3 h-3 text-emerald-400" />
+                ) : (
+                  <Copy className="w-3 h-3 opacity-60" />
+                )}
+                <span
+                  className={`w-2 h-2 rounded-full ml-0.5 ${
+                    isConnected ? "bg-emerald-400 shadow-[0_0_6px_#34d399]" : "bg-rose-500"
+                  }`}
+                  title={isConnected ? "Real-time socket active" : "Reconnecting..."}
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Active Turn Banner */}
+          <div className="flex items-center justify-between gap-3 p-3 rounded-xl bg-[#181008] border border-amber-950">
+            <div className="flex items-center gap-2.5">
+              <div
+                className={`w-9 h-9 rounded-xl flex items-center justify-center text-base font-black ${
+                  currentTurnLabel === "White"
+                    ? "bg-amber-300 text-amber-950"
+                    : "bg-[#100a05] text-amber-100 border border-amber-900/50"
+                }`}
+                style={{
+                  boxShadow:
+                    currentTurnLabel === "White"
+                      ? "2px 2px 6px rgba(0,0,0,0.3), inset -2px -2px 4px rgba(180,120,30,0.3), inset 2px 2px 4px rgba(255,255,255,0.7)"
+                      : "2px 2px 6px rgba(0,0,0,0.4), inset -2px -2px 4px rgba(0,0,0,0.5), inset 2px 2px 4px rgba(255,210,130,0.15)",
+                }}
+              >
+                {currentTurnLabel === "White" ? "♙" : "♟"}
+              </div>
+              <div>
+                <div className="text-sm font-black text-amber-100">
+                  {currentTurnLabel}&apos;s Turn
+                </div>
+                <div className="text-[11px] font-medium text-amber-300/70">
+                  {isMyTurn ? "Your turn to move" : `${opponentName}'s turn`}
+                </div>
+              </div>
+            </div>
+
+            {isCheck && (
+              <span className="camp-badge camp-badge-red text-xs px-2.5 py-1 animate-bounce">
+                ⚠️ Check!
+              </span>
+            )}
+          </div>
+
+          {renderDrawOfferBanner()}
+          {renderAlerts()}
+        </div>
+
+        {/* 2. Move Notation Log */}
+        <MoveHistory moves={moves} className="flex-1 min-h-[220px]" />
+
+        {/* 3. Action Buttons Panel */}
+        <div
+          className="rounded-2xl p-3.5 bg-[#261a0e]/95 border border-[#48331d]/60 flex flex-col gap-2.5"
+          style={{
+            boxShadow:
+              "4px 4px 14px rgba(24,14,5,0.4), inset -3px -3px 8px rgba(24,14,5,0.3), inset 3px 3px 8px rgba(255,215,130,0.06)",
+          }}
+        >
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              disabled={drawOfferSent || !!gameOverResult || room.status !== "in_progress"}
+              onClick={handleSendDrawOffer}
+              className="camp-btn camp-btn-slate text-xs py-2.5 px-3 font-black flex items-center justify-center gap-1.5 disabled:opacity-40"
+              title="Offer mutual draw"
+            >
+              <Handshake className="w-3.5 h-3.5" />
+              <span>{drawOfferSent ? "Draw Offered" : "Offer Draw"}</span>
+            </button>
+
+            <button
+              type="button"
+              disabled={!!gameOverResult || room.status !== "in_progress"}
+              onClick={handleResign}
+              className={`camp-btn text-xs py-2.5 px-3 font-black flex items-center justify-center gap-1.5 transition-all disabled:opacity-40 ${
+                confirmResign ? "camp-btn-red bg-rose-600 text-white animate-pulse" : "camp-btn-slate"
+              }`}
+              title="Resign game"
+            >
+              <Flag className="w-3.5 h-3.5" />
+              <span>{confirmResign ? "Confirm Resign?" : "Resign"}</span>
+            </button>
+          </div>
+
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={toggleFullscreen}
+              className="camp-btn camp-btn-white text-xs py-2.5 px-3 font-black flex items-center justify-center gap-1.5 text-stone-900"
+              title="Fullscreen Mode"
+            >
+              <Maximize2 className="w-3.5 h-3.5" />
+              <span>Fullscreen</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={handleExitGame}
+              className={`camp-btn text-xs py-2.5 px-3 font-black flex items-center justify-center gap-1.5 transition-all ${
+                confirmExit ? "camp-btn-red bg-rose-600 text-white animate-pulse" : "camp-btn-slate"
+              }`}
+              title="Exit room to modes"
+            >
+              <LogOut className="w-3.5 h-3.5" />
+              <span>{confirmExit ? "Confirm Exit?" : "Exit Match"}</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Game Result Overlay / Card */}
+        {gameOverResult && (
+          <GameResultCard
+            result={gameOverResult}
+            reason={gameOverReason}
+            session={session}
+            saveStatus={saveStatus}
+            onPlayAgain={onExit}
+            onExit={onExit}
+            ratingChange={ratingChange}
+          />
+        )}
+      </div>
+
+      {renderPromotionModal()}
     </div>
   );
 }

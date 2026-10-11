@@ -3,13 +3,15 @@ import React from "react";
 interface PlayerCardProps {
   color: "white" | "black";
   name: string;
-  onNameChange: (val: string) => void;
+  onNameChange?: (val: string) => void;
   isTurn: boolean;
   isCompact?: boolean;
   className?: string;
   inputId?: string;
   /** If true, appends "(You)" to the color label. */
   isYou?: boolean;
+  /** Optional slot for chess clock or badge */
+  accessorySlot?: React.ReactNode;
 }
 
 export function PlayerCard({
@@ -21,6 +23,7 @@ export function PlayerCard({
   className = "",
   inputId,
   isYou = false,
+  accessorySlot,
 }: PlayerCardProps) {
   const isWhite = color === "white";
   const id = inputId || (isWhite ? "player-you" : "player-opponent");
@@ -38,7 +41,7 @@ export function PlayerCard({
           : "4px 4px 14px rgba(24,14,5,0.4), inset -3px -3px 8px rgba(24,14,5,0.3), inset 3px 3px 8px rgba(255,215,130,0.06)",
       }}
     >
-      <div className="flex items-center gap-2.5 min-w-0 flex-1">
+      <div className="flex items-center gap-2.5 min-w-0 flex-1 mr-2">
         {/* Piece Emblem */}
         <div
           className={`w-7 h-7 sm:w-8 sm:h-8 rounded-xl flex items-center justify-center text-sm font-black shrink-0 transition-transform ${
@@ -65,38 +68,49 @@ export function PlayerCard({
           >
             {isWhite ? "White" : "Black"}{isYou ? " (You):" : ":"}
           </label>
-          <input
-            id={id}
-            type="text"
-            value={name}
-            onChange={(e) => onNameChange(e.target.value)}
-            className="bg-[#181008]/70 border border-amber-900/40 rounded-lg px-2.5 py-1 text-xs sm:text-sm text-amber-100 font-bold focus:outline-none focus:border-amber-400 focus:bg-[#181008] transition-all w-28 sm:w-44 placeholder:text-stone-500 shadow-inner"
-            placeholder={isWhite ? "Your Name" : "Opponent Name"}
-          />
+          {onNameChange ? (
+            <input
+              id={id}
+              type="text"
+              value={name}
+              onChange={(e) => onNameChange(e.target.value)}
+              className="bg-[#181008]/70 border border-amber-900/40 rounded-lg px-2.5 py-1 text-xs sm:text-sm text-amber-100 font-bold focus:outline-none focus:border-amber-400 focus:bg-[#181008] transition-all w-28 sm:w-44 placeholder:text-stone-500 shadow-inner"
+              placeholder={isWhite ? "Your Name" : "Opponent Name"}
+            />
+          ) : (
+            <span className="text-xs sm:text-sm text-amber-100 font-bold truncate max-w-[130px] sm:max-w-[200px]">
+              {name}
+            </span>
+          )}
         </div>
       </div>
 
-      {/* Turn indicator */}
-      {isTurn ? (
-        <span
-          className={`text-[10px] sm:text-[11px] font-black uppercase tracking-wider px-3 py-1 rounded-full shrink-0 animate-pulse flex items-center gap-1.5 ${
-            isWhite
-              ? "bg-amber-300 text-amber-950 font-black shadow-sm"
-              : "bg-stone-700 text-amber-200 border border-amber-500/30"
-          }`}
-          style={{
-            boxShadow:
-              "2px 3px 8px rgba(0,0,0,0.35), inset -1px -1px 3px rgba(0,0,0,0.2), inset 1px 1px 3px rgba(255,255,255,0.4)",
-          }}
-        >
-          <span className="w-1.5 h-1.5 rounded-full bg-amber-600 animate-ping inline-block" />
-          {isWhite ? "Your Turn" : "To Move"}
-        </span>
-      ) : (
-        <span className="text-[10px] font-bold text-stone-500 px-2 py-0.5 uppercase tracking-wider shrink-0 hidden sm:inline-block">
-          Waiting
-        </span>
-      )}
+      {/* Right Controls: Clock / Accessory + Turn indicator */}
+      <div className="flex items-center gap-2 shrink-0">
+        {accessorySlot}
+
+        {isTurn ? (
+          <span
+            className={`text-[10px] sm:text-[11px] font-black uppercase tracking-wider px-2.5 sm:px-3 py-1 rounded-full shrink-0 animate-pulse flex items-center gap-1.5 ${
+              isWhite
+                ? "bg-amber-300 text-amber-950 font-black shadow-sm"
+                : "bg-stone-700 text-amber-200 border border-amber-500/30"
+            }`}
+            style={{
+              boxShadow:
+                "2px 3px 8px rgba(0,0,0,0.35), inset -1px -1px 3px rgba(0,0,0,0.2), inset 1px 1px 3px rgba(255,255,255,0.4)",
+            }}
+          >
+            <span className="w-1.5 h-1.5 rounded-full bg-amber-600 animate-ping inline-block" />
+            <span className="hidden sm:inline">{isWhite ? "Your Turn" : "To Move"}</span>
+            <span className="sm:hidden">Turn</span>
+          </span>
+        ) : (
+          <span className="text-[10px] font-bold text-stone-500 px-2 py-0.5 uppercase tracking-wider shrink-0 hidden sm:inline-block">
+            Waiting
+          </span>
+        )}
+      </div>
     </div>
   );
 }

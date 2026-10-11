@@ -20,6 +20,7 @@ import { PlayerCard } from "./chess/PlayerCard";
 import { MoveHistory } from "./chess/MoveHistory";
 import { GameResultCard } from "./chess/GameResultCard";
 import { PromotionModal, PromotionPiece } from "./chess/PromotionModal";
+import { BoardWithCoordinates } from "./chess/BoardWithCoordinates";
 import type { GameMode } from "@/app/play/page";
 
 /** Badge metadata per game mode — scalable: add new modes here. */
@@ -510,34 +511,34 @@ export function CustomChessGame({ gameMode = "local" }: { gameMode?: GameMode })
   const renderBoard = (style?: React.CSSProperties) => (
     <div
       ref={containerRef}
-      className="camp-board-tray w-full shrink-0 touch-none select-none"
-      style={{ aspectRatio: "1 / 1", margin: "0 auto", ...style }}
+      className="w-full shrink-0 touch-none select-none"
+      style={{ margin: "0 auto", ...style }}
     >
-      <Chessboard
-        options={{
-          id: "custom-board",
-          position: fen,
-          boardOrientation: loggedInPlayerColor, // NEW: flip board based on chosen color
-          onPieceDrop,
-          onSquareClick,
-          squareStyles: buildSquareStyles(selectedSquare, game, pendingPromotion),
-          pieces: customPieces,
-          boardStyle: {
-            borderRadius: "8px",
-            boxShadow: "inset 0 0 8px rgba(0,0,0,0.6), 0 4px 18px rgba(0,0,0,0.45)",
-            overflow: "hidden",
-            aspectRatio: "1 / 1",
-            touchAction: "none",
-          },
-          darkSquareStyle,
-          lightSquareStyle,
-          dropSquareStyle,
-          darkSquareNotationStyle: getDarkNotationStyle(isMobile),
-          lightSquareNotationStyle: getLightNotationStyle(isMobile),
-          animationDurationInMs: 200,
-          showNotation: true,
-        }}
-      />
+      <BoardWithCoordinates orientation={loggedInPlayerColor}>
+        <Chessboard
+          options={{
+            id: "custom-board",
+            position: fen,
+            boardOrientation: loggedInPlayerColor,
+            onPieceDrop,
+            onSquareClick,
+            squareStyles: buildSquareStyles(selectedSquare, game, pendingPromotion),
+            pieces: customPieces,
+            boardStyle: {
+              borderRadius: "8px",
+              boxShadow: "inset 0 0 8px rgba(0,0,0,0.6), 0 4px 18px rgba(0,0,0,0.45)",
+              overflow: "hidden",
+              aspectRatio: "1 / 1",
+              touchAction: "none",
+            },
+            darkSquareStyle,
+            lightSquareStyle,
+            dropSquareStyle,
+            animationDurationInMs: 200,
+            showNotation: false,
+          }}
+        />
+      </BoardWithCoordinates>
     </div>
   );
 
