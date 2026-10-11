@@ -357,3 +357,52 @@
   background: linear-gradient(145deg, #f5c5c5 0%, #e09090 100%);
   color: #5c1010;
 }
+
+/* ==========================================================================
+   PHYSICAL CLAYMORPHIC ELEVATIONS & 3D PERSPECTIVE
+   ========================================================================== */
+
+.clay-lvl1-recessed {
+  box-shadow: inset 3px 3px 6px rgba(28, 19, 10, 0.65), inset -2px -2px 5px rgba(253, 248, 240, 0.12);
+}
+
+.clay-lvl2-surface {
+  box-shadow: 6px 8px 16px rgba(35, 24, 12, 0.45), inset 1.5px 1.5px 3px rgba(253, 248, 240, 0.35);
+}
+
+.clay-lvl3-floating {
+  box-shadow: 12px 18px 30px rgba(25, 15, 6, 0.6), -4px -4px 14px rgba(92, 74, 48, 0.28), inset 2px 2px 4px rgba(253, 248, 240, 0.38);
+}
+
+.clay-lvl4-interactive {
+  box-shadow: 16px 24px 40px rgba(20, 12, 4, 0.75), inset 3px 3px 6px rgba(253, 248, 240, 0.25), inset -4px -4px 8px rgba(20, 10, 3, 0.6);
+}
+
+.clay-active-squash {
+  transition: transform 0.12s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.12s ease;
+}
+
+.clay-active-squash:active {
+  transform: scale(0.96) translateY(2px);
+  box-shadow: var(--clay-shadow-pressed);
+}
+
+.perspective-board {
+  perspective: 1200px;
+}
+
+.board-angle {
+  transform: rotateX(12deg) rotateZ(-0.5deg);
+  transform-style: preserve-3d;
+  transition: transform 0.45s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+@media (max-width: 768px) {
+  .board-angle {
+    transform: rotateX(6deg) rotateZ(0deg);
+  }
+}
+
+.board-angle:hover {
+  transform: rotateX(6deg) rotateZ(0deg) translateY(-4px);
+}

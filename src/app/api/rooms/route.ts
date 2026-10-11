@@ -42,6 +42,7 @@ export async function POST(req: NextRequest) {
 
   const whiteTimeMs = timeControl > 0 ? timeControl * 1000 : null;
   const blackTimeMs = timeControl > 0 ? timeControl * 1000 : null;
+  
 
   const [room] = await db
     .insert(gameRooms)
