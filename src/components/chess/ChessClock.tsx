@@ -124,17 +124,9 @@ export function useChessClocks(
   const onMoveMade = useCallback(
     (byColor: "white" | "black", newWhiteMs?: number, newBlackMs?: number) => {
       if (!isTimed) return;
-      if (newWhiteMs !== undefined) setWhiteMs(newWhiteMs);
-      if (newBlackMs !== undefined) setBlackMs(newBlackMs);
-
-      // Add increment to the player who just moved
-      if (byColor === "white") {
-        setWhiteMs((prev) => (newWhiteMs ?? prev) + incrementMs);
-        setActiveClock("black");
-      } else {
-        setBlackMs((prev) => (newBlackMs ?? prev) + incrementMs);
-        setActiveClock("white");
-      }
+      setWhiteMs((prev) => newWhiteMs ?? (byColor === "white" ? prev + incrementMs : prev));
+      setBlackMs((prev) => newBlackMs ?? (byColor === "black" ? prev + incrementMs : prev));
+      setActiveClock(byColor === "white" ? "black" : "white");
     },
     [incrementMs, isTimed],
   );

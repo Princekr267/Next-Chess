@@ -21,6 +21,14 @@ export async function POST(req: NextRequest) {
   const increment: number = body.increment ?? 0;
   const hostColor: string = body.hostColor ?? "white";
 
+  if (
+    !Number.isInteger(timeControl) || timeControl < 0 || timeControl > 7200 ||
+    !Number.isInteger(increment) || increment < 0 || increment > 60 ||
+    (timeControl === 0 && increment !== 0)
+  ) {
+    return NextResponse.json({ error: "Invalid time control" }, { status: 400 });
+  }
+
   if (!["white", "black", "random"].includes(hostColor)) {
     return NextResponse.json({ error: "Invalid hostColor" }, { status: 400 });
   }

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { db } from "@/db";
 import { gameRooms } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import { getPusherServer } from "@/lib/pusher-server";
 
 /**
@@ -67,9 +67,18 @@ export async function POST(
       guestName: session.user.name,
       hostColor: resolvedHostColor,
       status: "in_progress",
+      lastMoveAt: new Date(),
     })
-    .where(eq(gameRooms.code, upperCode))
+    .where(and(
+      eq(gameRooms.code, upperCode),
+      eq(gameRooms.status, "waiting"),
+      isNull(gameRooms.guestUserId),
+    ))
     .returning();
+
+  if (!updated) {
+    return NextResponse.json({ error: "Room was just joined" }, { status: 409 });
+  }
 
   // Notify the host that the guest joined via Pusher (non-fatal)
   try {
