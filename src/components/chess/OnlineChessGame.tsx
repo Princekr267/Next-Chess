@@ -40,6 +40,13 @@ import { MoveHistory } from "./MoveHistory";
 import { BoardWithCoordinates } from "./BoardWithCoordinates";
 import { getPusherClient } from "@/lib/pusher-client";
 
+/** Number of half-moves played, derived from a FEN string. */
+function fenPly(fen: string): number {
+  const parts = fen.split(" ");
+  const fullmove = parseInt(parts[5] ?? "1", 10) || 1;
+  return (fullmove - 1) * 2 + (parts[1] === "b" ? 1 : 0);
+}
+
 interface OnlineChessGameProps {
   roomCode: string;
   initialRoom: any;
@@ -266,6 +273,10 @@ export function OnlineChessGame({
         setOpponentOnline(members.count >= 2);
       });
 
+      channel.bind("pusher:subscription_error", () => {
+        setIsConnected(false);
+      });
+
       channel.bind("pusher:member_added", () => {
         setOpponentOnline(true);
         setDisconnectTimer(null);
@@ -331,8 +342,27 @@ export function OnlineChessGame({
                 finalizeGame("draw", "stalemate_or_repetition");
               }
             }
+          } else if (data.fen) {
+            game.load(data.fen);
+            setFen(game.fen());
+            setMoves(game.history());
+            setSelectedSquare(null);
+            const byColor = game.turn() === "w" ? "black" : "white";
+            onMoveMade(byColor, data.whiteTimeMs, data.blackTimeMs);
           }
         } catch (err) {
+          if (data.fen) {
+            try {
+              game.load(data.fen);
+              setFen(game.fen());
+              setMoves(game.history());
+              setSelectedSquare(null);
+              const byColor = game.turn() === "w" ? "black" : "white";
+              onMoveMade(byColor, data.whiteTimeMs, data.blackTimeMs);
+            } catch (loadErr) {
+              console.error("Error loading fen on opponent move", loadErr);
+            }
+          }
           console.error("Error applying opponent move", err);
         }
       });
@@ -442,7 +472,7 @@ export function OnlineChessGame({
   useEffect(() => {
     if (finishedRef.current) return;
 
-    const pollIntervalMs = pusherAvailable ? 6000 : 3000;
+    const pollIntervalMs = isConnected ? 6000 : 1200;
     const interval = setInterval(async () => {
       const state = latestStateRef.current;
       try {
@@ -465,7 +495,13 @@ export function OnlineChessGame({
         }
 
         // Sync FEN & PGN (opponent's moves via polling)
-        if (data.room.currentFen && data.room.currentFen !== state.game.fen()) {
+        // Only adopt the server position if it is ahead of ours;
+        // if it is behind, our own move is still being saved.
+        if (
+          data.room.currentFen &&
+          data.room.currentFen !== state.game.fen() &&
+          fenPly(data.room.currentFen) > fenPly(state.game.fen())
+        ) {
           if (data.room.pgn) {
             try {
               state.game.loadPgn(data.room.pgn);
@@ -517,7 +553,7 @@ export function OnlineChessGame({
     }, pollIntervalMs);
 
     return () => clearInterval(interval);
-  }, [roomCode, pusherAvailable]);
+  }, [roomCode, isConnected]);
 
   // Disconnect timer countdown
   useEffect(() => {
