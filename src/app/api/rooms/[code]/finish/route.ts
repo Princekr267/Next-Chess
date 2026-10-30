@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { db } from "@/db";
 import { gameRooms, matches, user } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { getPusherServer } from "@/lib/pusher-server";
 import { calculateNewRating, resultToScore } from "@/lib/elo";
 
@@ -48,11 +48,20 @@ export async function POST(
     return NextResponse.json({ ok: true, alreadyCompleted: true });
   }
 
-  // Mark room as completed
-  await db
+  const isParticipant = room.hostUserId === session.user.id || room.guestUserId === session.user.id;
+  if (!isParticipant) {
+    return NextResponse.json({ error: "Not a participant" }, { status: 403 });
+  }
+
+  // Claim finalization once so simultaneous finish requests cannot save duplicate results.
+  const [completedRoom] = await db
     .update(gameRooms)
     .set({ status: "completed", result, resultReason: reason ?? null })
-    .where(eq(gameRooms.code, upperCode));
+    .where(and(eq(gameRooms.code, upperCode), eq(gameRooms.status, "in_progress")))
+    .returning({ id: gameRooms.id });
+  if (!completedRoom) {
+    return NextResponse.json({ ok: true, alreadyCompleted: true });
+  }
 
   // Determine who is white and who is black
   const hostIsWhite = room.hostColor === "white";

@@ -37,6 +37,7 @@ const TIME_CONTROLS = [
   { label: "3 min", totalSec: 180, incSec: 2, desc: "3 | 2 Blitz" },
   { label: "5 min", totalSec: 300, incSec: 0, desc: "5 | 0 Blitz" },
   { label: "10 min", totalSec: 600, incSec: 5, desc: "10 | 5 Rapid" },
+  { label: "Custom", totalSec: 900, incSec: 0, desc: "Choose time" },
 ];
 
 export function FriendLobby({ session, onRoomReady }: FriendLobbyProps) {
@@ -44,6 +45,8 @@ export function FriendLobby({ session, onRoomReady }: FriendLobbyProps) {
 
   // Create Room state
   const [selectedTimeControl, setSelectedTimeControl] = useState(3); // default 5 min
+  const [customMinutes, setCustomMinutes] = useState(15);
+  const [customIncrement, setCustomIncrement] = useState(0);
   const [hostColor, setHostColor] = useState<"white" | "black" | "random">("white");
   const [isCreating, setIsCreating] = useState(false);
   const [createdRoom, setCreatedRoom] = useState<any | null>(null);
@@ -62,7 +65,17 @@ export function FriendLobby({ session, onRoomReady }: FriendLobbyProps) {
     setIsCreating(true);
     setCreateError(null);
 
-    const tc = TIME_CONTROLS[selectedTimeControl];
+    const preset = TIME_CONTROLS[selectedTimeControl];
+    const tc = selectedTimeControl === TIME_CONTROLS.length - 1
+      ? { totalSec: customMinutes * 60, incSec: customIncrement }
+      : preset;
+    const isCasual = tc?.totalSec === 0 && tc.incSec === 0;
+    if (!tc || (!isCasual && (!Number.isInteger(tc.totalSec) || tc.totalSec < 60 || tc.totalSec > 7200)) ||
+      !Number.isInteger(tc.incSec) || tc.incSec < 0 || tc.incSec > 60) {
+      setCreateError("Choose a starting time from 1 to 120 minutes and an increment from 0 to 60 seconds.");
+      setIsCreating(false);
+      return;
+    }
 
     try {
       const { data } = await axios.post("/api/rooms", {
@@ -261,6 +274,23 @@ export function FriendLobby({ session, onRoomReady }: FriendLobbyProps) {
                   ))}
                 </div>
               </div>
+
+              {selectedTimeControl === TIME_CONTROLS.length - 1 && (
+                <div className="grid grid-cols-2 gap-3 rounded-xl border border-amber-950/20 bg-white/60 p-3">
+                  <label className="text-xs font-bold text-amber-950">
+                    Starting minutes
+                    <input type="number" min={1} max={120} step={1} value={customMinutes}
+                      onChange={(e) => setCustomMinutes(Number(e.target.value))}
+                      className="mt-1 w-full rounded-lg border border-amber-950/20 bg-white p-2 text-sm text-gray-950" />
+                  </label>
+                  <label className="text-xs font-bold text-amber-950">
+                    Increment (seconds)
+                    <input type="number" min={0} max={60} step={1} value={customIncrement}
+                      onChange={(e) => setCustomIncrement(Number(e.target.value))}
+                      className="mt-1 w-full rounded-lg border border-amber-950/20 bg-white p-2 text-sm text-gray-950" />
+                  </label>
+                </div>
+              )}
 
               {/* Side / Color Selection */}
               <div>

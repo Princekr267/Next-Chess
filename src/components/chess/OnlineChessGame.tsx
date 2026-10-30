@@ -125,6 +125,12 @@ export function OnlineChessGame({
     stopClocks,
   } = useChessClocks(initialWhiteMs, initialBlackMs, incrementMs);
 
+  useEffect(() => {
+    if (room.status === "in_progress" && isTimed) {
+      syncClocks(whiteMs, blackMs, game.turn() === "w" ? "white" : "black");
+    }
+  }, [room.status, isTimed, syncClocks, whiteMs, blackMs, game]);
+
   // Responsive window resize listener
   useEffect(() => {
     function handleResize() {
@@ -212,10 +218,16 @@ export function OnlineChessGame({
         result: winner,
         reason: "timeout",
       });
+      setGameOverResult(winner === myColor ? "win" : "loss");
+      setGameOverReason("timeout");
+      setSaveStatus("saved");
     } catch (err) {
       console.error("Timeout reporting failed", err);
+      setGameOverResult(winner === myColor ? "win" : "loss");
+      setGameOverReason("timeout");
+      setSaveStatus("error");
     }
-  }, [game, room.status, roomCode, stopClocks]);
+  }, [game, myColor, room.status, roomCode, stopClocks]);
 
   // Finish game helper
   const finalizeGame = useCallback(
@@ -257,6 +269,7 @@ export function OnlineChessGame({
   // Pusher subscriptions
   useEffect(() => {
     let channel: any = null;
+    let connectionStateHandler: ((state: { current: string }) => void) | null = null;
 
     const pusher = getPusherClient();
     if (!pusher) {
@@ -272,6 +285,10 @@ export function OnlineChessGame({
         setIsConnected(true);
         setOpponentOnline(members.count >= 2);
       });
+      connectionStateHandler = (state: { current: string }) => {
+        setIsConnected(state.current === "connected");
+      };
+      pusher.connection.bind("state_change", connectionStateHandler);
 
       channel.bind("pusher:subscription_error", () => {
         setIsConnected(false);
@@ -364,6 +381,18 @@ export function OnlineChessGame({
             }
           }
           console.error("Error applying opponent move", err);
+          axios.get(`/api/rooms/${roomCode}`).then(({ data: state }) => {
+            if (!state.room) return;
+            if (state.room.pgn) game.loadPgn(state.room.pgn);
+            else game.load(state.room.currentFen);
+            setRoom(state.room);
+            setFen(game.fen());
+            setMoves(game.history());
+            if (isTimed && state.room.whiteTimeMs != null && state.room.blackTimeMs != null) {
+              syncClocks(state.room.whiteTimeMs, state.room.blackTimeMs,
+                game.turn() === "w" ? "white" : "black");
+            }
+          }).catch((syncError) => console.error("Room state recovery failed", syncError));
         }
       });
 
@@ -425,6 +454,9 @@ export function OnlineChessGame({
         channel.unbind_all();
         pusher?.unsubscribe(`presence-room-${roomCode.toUpperCase()}`);
       }
+      if (connectionStateHandler) {
+        pusher?.connection.unbind("state_change", connectionStateHandler);
+      }
     };
   }, [
     roomCode,
@@ -442,7 +474,6 @@ export function OnlineChessGame({
   ]);
 
   // Polling fallback ref with constant dependencies
-  const pusherAvailable = !!getPusherClient();
   const latestStateRef = useRef({
     room,
     game,
@@ -472,7 +503,7 @@ export function OnlineChessGame({
   useEffect(() => {
     if (finishedRef.current) return;
 
-    const pollIntervalMs = isConnected ? 6000 : 1200;
+    const pollIntervalMs = isConnected ? 5000 : 1200;
     const interval = setInterval(async () => {
       const state = latestStateRef.current;
       try {
@@ -577,29 +608,49 @@ export function OnlineChessGame({
 
   // Move submission to server
   async function submitMove(from: string, to: string, promotion?: string) {
-    const nextFen = game.fen();
-    const nextPgn = game.pgn();
-
-    // Check game over locally
-    if (game.isGameOver()) {
-      if (game.isCheckmate()) {
-        const winner = game.turn() === "w" ? "black" : "white";
-        finalizeGame(winner, "checkmate");
-      } else if (game.isDraw()) {
-        finalizeGame("draw", "stalemate");
-      }
-    }
-
     try {
-      await axios.post(`/api/rooms/${roomCode}/move`, {
-        from,
-        to,
-        promotion,
-        fen: nextFen,
-        pgn: nextPgn,
-      });
+      const { data } = await axios.post(`/api/rooms/${roomCode}/move`, { from, to, promotion });
+      if (isTimed) {
+        const movedColor = game.turn() === "w" ? "black" : "white";
+        onMoveMade(movedColor, data.whiteTimeMs, data.blackTimeMs);
+      }
+
+      if (game.isGameOver()) {
+        if (game.isCheckmate()) {
+          const winner = game.turn() === "w" ? "black" : "white";
+          await finalizeGame(winner, "checkmate");
+        } else if (game.isDraw()) {
+          await finalizeGame("draw", "stalemate");
+        }
+      }
     } catch (err: any) {
       console.error("Move failed to post", err);
+      setStatusMessage("Move not accepted. Restoring the latest room position…");
+      try {
+        const { data } = await axios.get(`/api/rooms/${roomCode}`);
+        const serverRoom = data.room;
+        if (serverRoom?.pgn) game.loadPgn(serverRoom.pgn);
+        else if (serverRoom?.currentFen) game.load(serverRoom.currentFen);
+        if (serverRoom) {
+          setRoom(serverRoom);
+          setFen(game.fen());
+          setMoves(game.history());
+          if (isTimed && serverRoom.whiteTimeMs != null && serverRoom.blackTimeMs != null) {
+            syncClocks(serverRoom.whiteTimeMs, serverRoom.blackTimeMs,
+              game.turn() === "w" ? "white" : "black");
+          }
+          if (serverRoom.status === "completed") {
+            finishedRef.current = true;
+            stopClocks();
+            setGameOverReason(serverRoom.resultReason ?? "unknown");
+            setGameOverResult(serverRoom.result === "draw" ? "draw" :
+              serverRoom.result === myColor ? "win" : "loss");
+          }
+        }
+      } catch (syncError) {
+        console.error("Room state recovery failed", syncError);
+      }
+      setTimeout(() => setStatusMessage(null), 4000);
     }
   }
 
@@ -623,8 +674,6 @@ export function OnlineChessGame({
         setFen(game.fen());
         setMoves(game.history());
         setSelectedSquare(null);
-        const byColor = move.color === "w" ? "white" : "black";
-        onMoveMade(byColor);
         submitMove(from, to, pieceChoice);
       }
     } catch (err) {
@@ -665,8 +714,6 @@ export function OnlineChessGame({
       setFen(game.fen());
       setMoves(game.history());
       setSelectedSquare(null);
-      const byColor = move.color === "w" ? "white" : "black";
-      onMoveMade(byColor);
       submitMove(sourceSquare, targetSquare);
       return true;
     } catch {
@@ -698,8 +745,6 @@ export function OnlineChessGame({
           setFen(game.fen());
           setMoves(game.history());
           setSelectedSquare(null);
-          const byColor = move.color === "w" ? "white" : "black";
-          onMoveMade(byColor);
           submitMove(selectedSquare, clicked);
           return;
         }
