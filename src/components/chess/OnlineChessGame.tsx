@@ -40,6 +40,14 @@ import { MoveHistory } from "./MoveHistory";
 import { BoardWithCoordinates } from "./BoardWithCoordinates";
 import { getPusherClient } from "@/lib/pusher-client";
 
+/** Number of half-moves played, derived from a FEN string. */
+export function fenPly(fen: string): number {
+  if (!fen || typeof fen !== "string") return 0;
+  const parts = fen.trim().split(/\s+/);
+  const fullmove = parseInt(parts[5] ?? "1", 10) || 1;
+  return (fullmove - 1) * 2 + (parts[1] === "b" ? 1 : 0);
+}
+
 interface OnlineChessGameProps {
   roomCode: string;
   initialRoom: any;
@@ -95,6 +103,7 @@ export function OnlineChessGame({
   const [ratingChange, setRatingChange] = useState<{ before: number; after: number } | null>(null);
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const finishedRef = useRef(false);
+  const isSubmittingMoveRef = useRef(false);
 
   // Pawn promotion
   const [pendingPromotion, setPendingPromotion] = useState<{
@@ -283,6 +292,10 @@ export function OnlineChessGame({
       };
       pusher.connection.bind("state_change", connectionStateHandler);
 
+      channel.bind("pusher:subscription_error", () => {
+        setIsConnected(false);
+      });
+
       channel.bind("pusher:member_added", () => {
         setOpponentOnline(true);
         setDisconnectTimer(null);
@@ -348,16 +361,37 @@ export function OnlineChessGame({
                 finalizeGame("draw", "stalemate_or_repetition");
               }
             }
-          }
-        } catch (err) {
-          console.error("Error applying opponent move", err);
-          axios.get(`/api/rooms/${roomCode}`).then(({ data: state }) => {
-            if (!state.room) return;
-            if (state.room.pgn) game.loadPgn(state.room.pgn);
-            else game.load(state.room.currentFen);
-            setRoom(state.room);
+          } else if (data.fen) {
+            game.load(data.fen);
             setFen(game.fen());
             setMoves(game.history());
+            setSelectedSquare(null);
+            const byColor = game.turn() === "w" ? "black" : "white";
+            onMoveMade(byColor, data.whiteTimeMs, data.blackTimeMs);
+          }
+        } catch (err) {
+          if (data.fen) {
+            try {
+              game.load(data.fen);
+              setFen(game.fen());
+              setMoves(game.history());
+              setSelectedSquare(null);
+              const byColor = game.turn() === "w" ? "black" : "white";
+              onMoveMade(byColor, data.whiteTimeMs, data.blackTimeMs);
+            } catch (loadErr) {
+              console.error("Error loading fen on opponent move", loadErr);
+            }
+          }
+          console.error("Error applying opponent move", err);
+          axios.get(`/api/rooms/${roomCode}`).then(({ data: state }) => {
+            if (!state.room || isSubmittingMoveRef.current) return;
+            if (state.room.currentFen && fenPly(state.room.currentFen) > fenPly(game.fen())) {
+              if (state.room.pgn) game.loadPgn(state.room.pgn);
+              else game.load(state.room.currentFen);
+              setRoom(state.room);
+              setFen(game.fen());
+              setMoves(game.history());
+            }
             if (isTimed && state.room.whiteTimeMs != null && state.room.blackTimeMs != null) {
               syncClocks(state.room.whiteTimeMs, state.room.blackTimeMs,
                 game.turn() === "w" ? "white" : "black");
@@ -496,7 +530,14 @@ export function OnlineChessGame({
         }
 
         // Sync FEN & PGN (opponent's moves via polling)
-        if (data.room.currentFen && data.room.currentFen !== state.game.fen()) {
+        // Only adopt the server position if it is ahead of ours;
+        // if it is behind, our own move is still being saved.
+        if (
+          !isSubmittingMoveRef.current &&
+          data.room.currentFen &&
+          data.room.currentFen !== state.game.fen() &&
+          fenPly(data.room.currentFen) > fenPly(state.game.fen())
+        ) {
           if (data.room.pgn) {
             try {
               state.game.loadPgn(data.room.pgn);
@@ -572,6 +613,7 @@ export function OnlineChessGame({
 
   // Move submission to server
   async function submitMove(from: string, to: string, promotion?: string) {
+    isSubmittingMoveRef.current = true;
     try {
       const { data } = await axios.post(`/api/rooms/${roomCode}/move`, { from, to, promotion });
       if (isTimed) {
@@ -615,6 +657,8 @@ export function OnlineChessGame({
         console.error("Room state recovery failed", syncError);
       }
       setTimeout(() => setStatusMessage(null), 4000);
+    } finally {
+      isSubmittingMoveRef.current = false;
     }
   }
 
